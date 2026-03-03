@@ -74,6 +74,7 @@
           <template v-if="isLoading">
             <div v-for="n in 4" :key="'skel-'+n" 
                 class="bg-white border border-slate-100 rounded-[28px] p-8 flex flex-col space-y-6 animate-pulse min-h-[500px]">
+              
               <div class="flex justify-between">
                 <div class="space-y-3 w-1/2">
                   <div class="h-2 bg-slate-100 rounded w-1/3"></div>
@@ -84,10 +85,13 @@
                   <div class="h-6 bg-slate-100 rounded-full w-3/4"></div>
                 </div>
               </div>
+
               <div class="h-20 bg-slate-50 rounded-2xl w-full"></div>
+              
               <div class="grid grid-cols-2 gap-4">
                 <div v-for="i in 4" :key="i" class="h-12 bg-slate-50 rounded-xl"></div>
               </div>
+
               <div class="h-24 bg-indigo-50/30 rounded-2xl w-full mt-auto"></div>
             </div>
           </template>
@@ -105,27 +109,27 @@
                   <div class="flex items-center gap-2">
                     <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Vencimento</span>
                     <div class="text-[11px] font-mono-data font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                      {{ op.vencimento }} <span class="text-brand-rose ml-1">({{ op.dte }}d)</span>
+                      {{ getVal(op, 'Vencimento') }} <span class="text-brand-rose ml-1">({{ getVal(op, 'DTE') }}d)</span>
                     </div>
                   </div>
                   <div>
                     <h4 class="text-4xl font-black font-mono-data tracking-tighter text-slate-900 leading-none">
-                      {{ op.ticker }}
+                      {{ getVal(op, 'Ticker') }}
                     </h4>
-                    <span class="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em]">{{ op.codigo }}</span>
+                    <span class="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em]">{{ getVal(op, 'Código') }}</span>
                   </div>
                 </div>
 
                 <div class="flex flex-col items-end gap-2">
                   <span :class="getTipoStyle(op)" class="px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-tighter shadow-sm whitespace-nowrap">
-                    {{ op.direcao }} {{ op.tipo }}
+                    {{ isVenda(op) ? 'Venda' : 'Compra' }} {{ getVal(op, 'Tipo') }}
                   </span>
                   <div :class="getStyleContext(op).badge" class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest border uppercase shadow-inner">
-                    {{ op.moneynessCode }}
+                    {{ getVal(op, 'Moneyness') }}
                   </div>
                   <div class="flex flex-col items-end mt-1">
                     <span class="text-[8px] font-black uppercase text-slate-400 leading-none mb-1 tracking-widest">Quantidade</span>
-                    <span class="text-base font-black font-mono-data text-slate-800 leading-none">{{ op.qtd }}</span>
+                    <span class="text-base font-black font-mono-data text-slate-800 leading-none">{{ getVal(op, 'Quantidade') }}</span>
                   </div>
                 </div>
               </div>
@@ -137,15 +141,15 @@
               <div class="flex flex-wrap gap-2">
                 <span :class="getTendenciaStyle(op)" class="px-2 py-1.5 border rounded-lg text-[9px] font-black tracking-widest uppercase shadow-sm cursor-help" 
                       title="A maré está subindo ou descendo? Direção principal do ativo.">
-                  Tendência: {{ op.vereditoTendencia || 'N/D' }}
+                  Tendência: {{ getVal(op, 'Veredito_Tendencia') || 'N/D' }}
                 </span>
                 <span :class="getIfrStyle(op)" class="px-2 py-1.5 border rounded-lg text-[9px] font-black tracking-widest uppercase shadow-sm cursor-help" 
                       title="Aviso se o mercado está eufórico (sobrecomprado) ou em pânico (sobrevendido).">
-                  IFR: {{ op.statusIfr || 'N/D' }}
+                  IFR: {{ getVal(op, 'Status_IFR') || 'N/D' }}
                 </span>
                 <span :class="getBollingerStyle(op)" class="px-2 py-1.5 border rounded-lg text-[9px] font-black tracking-widest uppercase shadow-sm cursor-help" 
                       title="O preço está dentro da rodovia (normal) ou rompeu os limites (turbulência/alerta)?">
-                  Bandas: {{ op.statusBollinger || 'N/D' }}
+                  Bandas: {{ getVal(op, 'Status_Bollinger') || 'N/D' }}
                 </span>
               </div>
             </div>
@@ -159,22 +163,22 @@
                 <div class="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl flex flex-col min-w-[75px] cursor-help" 
                     title="Velocímetro de 0 a 100. Se está muito alto (acima de 70), o mercado comprou rápido demais e a ação está cara, podendo cair. Se está muito baixo (abaixo de 30), venderam demais e pode estar barata.">
                   <span class="text-[7px] font-black uppercase text-slate-400">IFR14</span>
-                  <span :class="getIfrNumStyle(op)" class="text-[10px] font-mono-data font-bold">{{ formatIndicador(op.ifr14) }}</span>
+                  <span :class="getIfrNumStyle(op)" class="text-[10px] font-mono-data font-bold">{{ formatIndicador(op, 'IFR14') }}</span>
                 </div>
                 <div class="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl flex flex-col min-w-[75px] cursor-help" 
                     title="Acostamento da Esquerda.">
                   <span class="text-[7px] font-black uppercase text-slate-400">B. Sup</span>
-                  <span class="text-[10px] font-mono-data font-bold text-slate-700">{{ formatIndicador(op.bandaSup, true) }}</span>
+                  <span class="text-[10px] font-mono-data font-bold text-slate-700">{{ formatIndicador(op, 'Banda_Sup', true) }}</span>
                 </div>
                 <div class="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl flex flex-col min-w-[75px] cursor-help" 
                     title="Acostamento da Direita.">
                   <span class="text-[7px] font-black uppercase text-slate-400">B. Inf</span>
-                  <span class="text-[10px] font-mono-data font-bold text-slate-700">{{ formatIndicador(op.bandaInf, true) }}</span>
+                  <span class="text-[10px] font-mono-data font-bold text-slate-700">{{ formatIndicador(op, 'Banda_Inf', true) }}</span>
                 </div>
                 <div class="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl flex flex-col min-w-[75px] cursor-help" 
                     title="Largura da pista. Imagine que o preço anda numa rodovia. A Banda Sup é o acostamento da esquerda e a Banda Inf o da direita. A Largura diz se a pista está estreita (mercado calmo, sem volatilidade) ou larga (turbulência).">
                   <span class="text-[7px] font-black uppercase text-slate-400">Largura</span>
-                  <span class="text-[10px] font-mono-data font-bold text-slate-700">{{ formatIndicador(op.larguraBanda) }}</span>
+                  <span class="text-[10px] font-mono-data font-bold text-slate-700">{{ formatIndicador(op, 'Largura_Banda') }}</span>
                 </div>
               </div>
             </div>
@@ -186,19 +190,19 @@
               <div class="grid grid-cols-2 md:flex md:flex-wrap gap-2">  
                 <div class="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl flex flex-col min-w-[75px] cursor-help" title="Média de 5 dias.">
                   <span class="text-[7px] font-black uppercase text-slate-400">MMA5</span>
-                  <span class="text-[10px] font-mono-data font-bold text-slate-700">{{ formatIndicador(op.mma5, true) }}</span>
+                  <span class="text-[10px] font-mono-data font-bold text-slate-700">{{ formatIndicador(op, 'MMA5', true) }}</span>
                 </div>
                 <div class="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl flex flex-col min-w-[75px] cursor-help" title="Média de 20 dias.">
                   <span class="text-[7px] font-black uppercase text-slate-400">MMA20</span>
-                  <span :class="getMeanComparisonStyle(op, 'mma20')" class="text-[10px] font-mono-data font-bold">{{ formatIndicador(op.mma20, true) }}</span>
+                  <span :class="getMeanComparisonStyle(op, 'MMA20')" class="text-[10px] font-mono-data font-bold">{{ formatIndicador(op, 'MMA20', true) }}</span>
                 </div>
                 <div class="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl flex flex-col min-w-[75px] cursor-help" title="Média de 200 dias.">
                   <span class="text-[7px] font-black uppercase text-slate-400">MMA200</span>
-                  <span :class="getMeanComparisonStyle(op, 'mma200')" class="text-[10px] font-mono-data font-bold">{{ formatIndicador(op.mma200, true) }}</span>
+                  <span :class="getMeanComparisonStyle(op, 'MMA200')" class="text-[10px] font-mono-data font-bold">{{ formatIndicador(op, 'MMA200', true) }}</span>
                 </div>
                 <div class="bg-white border border-slate-200 px-3 py-1.5 rounded-xl flex flex-col min-w-[85px] shadow-sm cursor-help" 
                     :class="getM200Style(op)" 
-                    title="Efeito elástico. Mostra, em porcentagem, o quão longe o preço atual está daquela Média Anual (MMA200).">
+                    title="Efeito elástico. Mostra, em porcentagem, o quão longe o preço atual está daquela Média Anual (MMA200). O preço age como um elástico: se esticar muito para longe da média, uma hora ele chicoteia de volta.">
                   <span class="text-[7px] font-black uppercase text-slate-400">Dist. M200</span>
                   <span class="text-[10px] font-mono-data font-bold">{{ getDistM200(op) }}</span>
                 </div>
@@ -208,29 +212,29 @@
               <div class="bg-slate-50/50 rounded-2xl border border-slate-100 py-2.5 px-4 flex justify-between items-center shadow-sm relative overflow-hidden">
                 <div class="text-center flex-1">
                   <p class="text-[8px] font-black uppercase text-slate-400 tracking-[0.2em] mb-0.5">Strike</p>
-                  <p class="text-sm font-mono-data font-black text-slate-800 leading-none">{{ formatarBRL(op.strike) }}</p>
+                  <p class="text-sm font-mono-data font-black text-slate-800 leading-none">{{ formatMoeda(getVal(op, 'Strike')) }}</p>
                 </div>
                 
                 <div class="h-6 w-px bg-slate-200 mx-4 opacity-60"></div>
                 
                 <div class="text-center flex-1">
                   <p class="text-[8px] font-black uppercase text-slate-400 tracking-[0.2em] mb-0.5">Dist. Spot</p>
-                  <p :class="op.plTotalRs >= 0 ? 'text-emerald-600' : 'text-rose-600'" class="text-sm font-mono-data font-black leading-none">{{ getDistSpot(op) }}</p>
+                  <p :class="getPlClass(op)" class="text-sm font-mono-data font-black leading-none">{{ getDistSpot(op) }}</p>
                 </div>
                 
                 <div class="h-6 w-px bg-slate-200 mx-4 opacity-60"></div>
                 
                 <div class="text-center flex-1">
                   <p class="text-[8px] font-black uppercase text-slate-400 tracking-[0.2em] mb-0.5">Spot Atual</p>
-                  <p class="text-sm font-mono-data font-black text-slate-800 leading-none">{{ formatarBRL(op.spot) }}</p>
+                  <p class="text-sm font-mono-data font-black text-slate-800 leading-none">{{ formatMoeda(getVal(op, 'Spot')) }}</p>
                 </div>
               </div>
 
               <div class="grid grid-cols-4 lg:grid-cols-7 gap-y-5 gap-x-2 pt-4 border-t border-slate-100">
-                <div v-for="field in configFields" :key="field.key" class="flex flex-col">
+                <div v-for="field in configFields.filter(f => !['QUANTIDADE', 'QTD'].includes(f.key))" :key="field.key" class="flex flex-col">
                   <span class="text-slate-400 text-[8px] font-black uppercase tracking-widest mb-1">{{ field.label }}</span>
                   <span class="text-slate-800 font-mono-data font-bold text-[10px]">
-                    {{ formatValue(field, op[field.key]) }}
+                    {{ field.key === 'GANHO MAXIMO' ? formatMoeda(getValExato(op, 'GANHO MAXIMO')) : formatValue(field, getVal(op, field.key)) }}
                   </span>
                 </div>
               </div>
@@ -240,10 +244,10 @@
                   <span class="text-[8px] font-black uppercase opacity-60 tracking-[0.2em] mb-0.5 leading-none">P/L Total (R$ | %)</span>
                   <div class="flex items-baseline gap-2">
                     <span class="text-xl font-black font-mono-data tracking-tighter leading-none">
-                      {{ formatarBRL(op.plTotalRs) }}
+                      {{ formatMoeda(getValExato(op, 'P/L TOTAL')) }}
                     </span>
                     <span class="text-[10px] font-black font-mono-data opacity-70 leading-none">
-                      / {{ formatValue({type:'pct'}, op.plTotalPct) }}
+                      / {{ formatValue({key:'P/L TOTAL %', type:'pct', label:'%'}, getValExato(op, 'P/L TOTAL %')) }}
                     </span>
                   </div>
                 </div>
@@ -292,41 +296,44 @@
 const ConsultoriaView = {
   props: {
     operations: { type: Array, default: () => [] },
-    isMobile: Boolean, 
-    isLoading: Boolean 
+    isMobile: Boolean,  // 📱 Adicionar esta
+    isLoading: Boolean  // 🚀 Adicionar esta
   },
   template: '#consultoria-view-template',
   data() {
     return {
       loadingIA: false,
-      // 🔥 OTIMIZAÇÃO: Chaves diretas do Tradutor!
       configFields: [
-        { key: 'premioPm', label: 'PM', type: 'moeda' },
-        { key: 'premioAtual', label: 'Atual', type: 'moeda' },
-        { key: 'lucroMaxPct', label: 'Lucro Máx', type: 'pct' },
-        { key: 'ganhoMaximo', label: 'Ganho Máx', type: 'moeda' },
-        { key: 'plTotalPct', label: 'P/L %', type: 'pct' },
-        { key: 'delta', label: 'Delta Δ', type: 'num' },
-        { key: 'nocional', label: 'Nocional', type: 'moeda' }
+        { key: 'QUANTIDADE', label: 'Qtd', type: 'num' },
+        { key: 'PRÊMIO (PM)', label: 'PM', type: 'moeda' },
+        { key: 'PRÊMIO ATUAL', label: 'Atual', type: 'moeda' },
+        { key: 'LUCRO MAX', label: 'Lucro Máx', type: 'currency' },
+        { key: 'GANHO MAXIMO', label: 'Ganho Máx', type: 'currency' },
+        { key: 'P/L TOTAL %', label: 'P/L %', type: 'pct' },
+        { key: 'DELTA', label: 'Delta Δ', type: 'num' },
+        { key: 'NOCIONAL', label: 'Nocional', type: 'moeda' }
       ]
     }
   },
 
+
   computed: {
-    // 1. Filtra e ordena (Agora muito mais rápido graças ao vencimentoDate nativo)
+    // 1. Filtra e ordena os cards na tela
     operacoesOrdenadas() {
       if (!this.operations || this.operations.length === 0) return [];
       return [...this.operations]
-        .filter(op => String(op.status || '').toUpperCase() === 'ATIVO')
+        .filter(op => String(this.getVal(op, 'STATUS')).trim().toUpperCase() === 'ATIVO')
         .sort((a, b) => {
-          // O sort agora usa milissegundos em O(1), sem parse manual!
-          const dateDiff = (a.vencimentoDate || 0) - (b.vencimentoDate || 0);
-          if (dateDiff !== 0) return dateDiff;
-          return String(a.ticker || '').localeCompare(String(b.ticker || ''));
+          const dateA = this._parseDate(this.getVal(a, 'Vencimento'));
+          const dateB = this._parseDate(this.getVal(b, 'Vencimento'));
+          if (dateA - dateB !== 0) return dateA - dateB;
+          const tickA = String(this.getVal(a, 'Ticker') || '');
+          const tickB = String(this.getVal(b, 'Ticker') || '');
+          return tickA.localeCompare(tickB);
         });
     },
 
-    // 2. O QUADRO DE COMANDO (Tático)
+    // 2. O QUADRO DE COMANDO (Agora no lugar certo!)
     resumoTatico() {
       const resumo = { RECOMPRAR: 0, MANTER: 0, OUTROS: 0 };
       let encontrouAnalise = false;
@@ -335,61 +342,95 @@ const ConsultoriaView = {
         if (op.respostaIA) {
           encontrouAnalise = true;
           const texto = op.respostaIA.toUpperCase();
+          
           if (texto.includes('RECOMPRAR')) resumo.RECOMPRAR++;
           else if (texto.includes('MANTER')) resumo.MANTER++;
           else if (texto.includes('ROLAR') || texto.includes('ASSUMIR')) resumo.OUTROS++;
         }
       });
+
       return encontrouAnalise ? resumo : {};
     }
-  }, 
+  }, // <--- Fim do Computed
 
   watch: {
+    // Sincroniza o cache sempre que os dados mudarem
     operations: {
       immediate: true,
       handler() {
-        this.$nextTick(() => { this.recuperarCacheIA(); });
+        this.$nextTick(() => {
+          this.recuperarCacheIA();
+        });
       }
     }
   },
 
+
   methods: {
+
     recuperarCacheIA() {
       const cacheKey = 'cache_auditoria_gemini';
       const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+      
       this.operacoesOrdenadas.forEach(op => {
-        const idUnico = `${op.ticker}_${op.codigo}`;
+        const idUnico = `${this.getVal(op, 'Ticker')}_${this.getVal(op, 'Código')}`;
+        // Se existe análise no cache e ela tem menos de 24 horas, restaura
         if (cache[idUnico] && (Date.now() - cache[idUnico].timestamp < 24 * 60 * 60 * 1000)) {
           op.respostaIA = cache[idUnico].texto;
         }
       });
     },
 
-    // --- LÓGICA DE DADOS OTIMIZADA ---
+    // --- LÓGICA DE DADOS (Adaptada para receber 'op' como parâmetro) ---
+    getVal(op, searchKey) {
+      if (!op) return '';
+      const keys = Object.keys(op);
+      const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+      const target = norm(searchKey);
+      const foundKey = keys.find(k => norm(k).includes(target) || (target === 'QUANTIDADE' && norm(k) === 'QTD'));
+      return foundKey ? op[foundKey] : '';
+    },
+    
+    getValExato(op, targetKey) {
+      if (!op) return '';
+      const keys = Object.keys(op);
+      const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+      const target = norm(targetKey);
+      const foundKey = keys.find(k => norm(k) === target);
+      return foundKey ? op[foundKey] : '';
+    },
+
     getDistSpot(op) {
-      if (op.strike > 0 && op.spot > 0) {
-        const d = ((op.spot / op.strike) - 1) * 100;
+      const strike = this._parseNum(this.getVal(op, 'STRIKE'));
+      const spot = this._parseNum(this.getVal(op, 'SPOT'));
+      if (strike > 0 && spot > 0) {
+        const d = ((spot / strike) - 1) * 100;
         return (d > 0 ? '+' : '') + d.toFixed(1) + '%';
       }
       return '0.0%';
     },
 
-    // --- LÓGICA DE ESTILOS OTIMIZADA ---
+    // --- LÓGICA DE ESTILOS ---
+    isVenda(op) {
+      const v = String(this.getVal(op, 'VENDA/COMPRA') || '').toUpperCase();
+      return v.includes('VENDA');
+    },
+
     getTipoStyle(op) {
-      const tipo = String(op.tipo || '').toUpperCase();
-      const direcao = String(op.direcao || '').toUpperCase();
-      if (direcao === 'VENDA' && tipo === 'PUT')  return 'bg-amber-100 text-amber-800 border-amber-200';
-      if (direcao === 'VENDA' && tipo === 'CALL') return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-      if (direcao === 'COMPRA' && tipo === 'PUT')  return 'bg-rose-100 text-rose-800 border-rose-200';
-      if (direcao === 'COMPRA' && tipo === 'CALL') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      const tipo = String(this.getVal(op, 'Tipo')).toUpperCase();
+      const venda = this.isVenda(op);
+      if (venda && tipo.includes('PUT'))   return 'bg-amber-100 text-amber-800 border-amber-200';
+      if (venda && tipo.includes('CALL'))  return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      if (!venda && tipo.includes('PUT'))  return 'bg-rose-100 text-rose-800 border-rose-200';
+      if (!venda && tipo.includes('CALL')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       return 'bg-slate-100 text-slate-800 border-slate-200';
     },
 
     getStyleContext(op) {
-      const m = String(op.moneynessCode || '').toUpperCase(); // <-- Adicione o 'Code' aqui
+      const m = String(this.getVal(op, 'MONEYNESS')).toUpperCase();
       if (m.includes('ITM')) return {
-        border: 'border-rose-100', badge: 'bg-rose-100 text-rose-800 border-rose-200',
-        footer: 'bg-rose-50 border-rose-100 text-rose-900', icon: '⚠️'
+        border: 'border-red-100', badge: 'bg-red-100 text-red-800 border-red-200',
+        footer: 'bg-red-50 border-red-100 text-red-900', icon: '⚠️'
       };
       if (m.includes('OTM')) return {
         border: 'border-emerald-100', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -401,110 +442,191 @@ const ConsultoriaView = {
       };
     },
 
-    // --- LÓGICA DO TERMÔMETRO E TENDÊNCIA ---
+    getPlClass(op) {
+      const val = this._parseNum(this.getVal(op, 'P/L TOTAL'));
+      return val >= 0 ? 'text-emerald-600' : 'text-red-600';
+    },
+
+    // =======================================================
+    // --- LÓGICA DO TERMÔMETRO E TENDÊNCIA (COMPLETA) ---
+    // =======================================================
+    
+    // 1. Cores para Status de Tendência
     getTendenciaStyle(op) {
-      const t = String(op.vereditoTendencia || '').toUpperCase();
+      const t = String(this.getVal(op, 'Veredito_Tendencia')).toUpperCase();
       if (t.includes('ALTA')) return 'bg-emerald-50 text-emerald-700 border-emerald-100';
       if (t.includes('BAIXA')) return 'bg-rose-50 text-rose-700 border-rose-100';
       return 'bg-slate-50 text-slate-600 border-slate-200';
     },
 
+    // 2. Cores para Status do IFR
     getIfrStyle(op) {
-      const ifr = String(op.statusIfr || '').toUpperCase();
-      if (ifr.includes('SOBRECOMPRADO')) return 'bg-rose-50 text-rose-700 border-rose-100'; 
-      if (ifr.includes('SOBREVENDIDO')) return 'bg-emerald-50 text-emerald-700 border-emerald-100'; 
+      const ifr = String(this.getVal(op, 'Status_IFR')).toUpperCase();
+      if (ifr.includes('SOBRECOMPRADO')) return 'bg-rose-50 text-rose-700 border-rose-100'; // Risco de queda
+      if (ifr.includes('SOBREVENDIDO')) return 'bg-emerald-50 text-emerald-700 border-emerald-100'; // Oportunidade
       return 'bg-slate-50 text-slate-600 border-slate-200';
     },
 
+    // 3. Cores para Status de Bollinger
     getBollingerStyle(op) {
-      const b = String(op.statusBollinger || '').toUpperCase();
+      const b = String(this.getVal(op, 'Status_Bollinger')).toUpperCase();
       if (b.includes('DENTRO')) return 'bg-slate-50 text-slate-600 border-slate-200';
+      // Se rompeu as bandas, é um evento de alta volatilidade (Amarelo Alerta)
       return 'bg-amber-50 text-amber-700 border-amber-100';
     },
 
+    // 4. Cores e Formatação para Distância da Média 200
     getM200Style(op) {
-      const dist = Tradutor.limparNumero(op.distMma200);
-      if (dist === 0 && !op.distMma200) return 'bg-slate-50 text-slate-600 border-slate-200';
-      if (dist > 15 || dist < -15) return 'bg-amber-50 text-amber-700 border-amber-100'; 
+      const distStr = this.getVal(op, 'Dist_MMA200');
+      if (!distStr && distStr !== 0) return 'bg-slate-50 text-slate-600 border-slate-200';
+      const dist = parseFloat(String(distStr).replace(',', '.'));
+      if (dist > 15 || dist < -15) return 'bg-amber-50 text-amber-700 border-amber-100'; // Muito esticado
       return 'bg-sky-50 text-sky-700 border-sky-100';
     },
 
     getDistM200(op) {
-      const num = Tradutor.limparNumero(op.distMma200);
-      if (num === 0 && !op.distMma200) return 'N/D';
+      const dist = this.getVal(op, 'Dist_MMA200');
+      if (!dist && dist !== 0) return 'N/D';
+      const num = parseFloat(String(dist).replace(',', '.'));
       return (num > 0 ? '+' : '') + num.toFixed(2).replace('.', ',') + '%';
     },
 
-    formatIndicador(val, isCurrency = false) {
-      const num = Tradutor.limparNumero(val);
-      if (num === 0 && !val) return 'N/D';
-      if (isCurrency) return this.formatarBRL(num);
+    // 5. Formatador Universal para os Novos Indicadores Numéricos
+    formatIndicador(op, key, isCurrency = false) {
+      const val = this.getVal(op, key);
+      if (!val && val !== 0) return 'N/D';
+      
+      const num = parseFloat(String(val).replace(/[R$.%]/g, '').replace(',', '.'));
+      if (isNaN(num)) return val; // Se for texto, devolve o texto intacto
+
+      // Se for as Médias (MMA5, MMA20, MMA200) ou Bandas, formata como Moeda
+      if (isCurrency) {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+      }
+      
+      // Se for IFR14, Vol_Relativo ou Largura da Banda, usa 2 casas decimais
       return num.toFixed(2).replace('.', ',');
     },
 
-    getIfrNumStyle(op) {
-      const val = Tradutor.limparNumero(op.ifr14);
-      if (val >= 70) return 'text-rose-600 font-black';
-      if (val <= 30) return 'text-emerald-600 font-black';
-      return 'text-slate-700'; 
+
+    // --- LÓGICA DE FORMATAÇÃO ---
+    _parseNum(v) {
+      if (typeof v === 'number') return v;
+      const clean = String(v || '0').replace(/[R$.%]/g, '').replace(',', '.').trim();
+      return parseFloat(clean) || 0;
+    },
+    
+    _parseDate(str) {
+      if (!str) return new Date(2099, 1, 1);
+      // Garante que pega apenas a data se vier data + hora do Sheets
+      const cleanStr = String(str).split(' ')[0];
+      const p = cleanStr.split('/');
+      return p.length < 3 ? new Date(2099, 1, 1) : new Date(p[2], p[1]-1, p[0]);
     },
 
-    getMeanComparisonStyle(op, meanKey) {
-      const spot = op.spot || 0;
-      const mean = Tradutor.limparNumero(op[meanKey]);
-      if (spot === 0 || mean === 0) return 'text-slate-500';
-      if (spot > mean) return 'text-emerald-600 font-black';
-      if (spot < mean) return 'text-rose-600 font-black';
-      return 'text-slate-700';
-    },
-
-    // --- FORMATAÇÕES BÁSICAS ---
     formatValue(field, val) {
-      if (val === undefined || val === null) return '-';
-      if (field.type === 'moeda') return this.formatarBRL(val);
-      if (field.type === 'pct') return val.toFixed(2).replace('.', ',') + ' %';
+      if (!val && val !== 0) return '-';
+      const n = this._parseNum(val);
+      if (field.type === 'moeda') return this.formatMoeda(val);
+      if (field.key === 'DELTA') return n.toFixed(4);
+      if (field.label.includes('Máx') || field.type === 'pct' || field.key.includes('PCT')) {
+        return n.toFixed(2).replace('.', ',') + ' %';
+      }
       return val;
     },
     
-    formatarBRL(v) {
-      return Tradutor.formatarMoeda(v);
+    formatMoeda(v) {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(this._parseNum(v));
     },
+
 
     // --- AÇÃO ---
     solicitarAuditoriaIA() {
       if (this.operacoesOrdenadas.length === 0) return;
+      
       this.loadingIA = true;
+      console.log("Iniciando auditoria IA para", this.operacoesOrdenadas.length, "ativos...");
+
+      // 1. Prepara o pacote (Remove a reatividade do Vue para viajar limpo pela rede)
       const payload = JSON.parse(JSON.stringify(this.operacoesOrdenadas));
 
+      // 2. Dispara pelo túnel oficial do Google Apps Script
       google.script.run
+
         .withSuccessHandler((respostaServidor) => {
           this.loadingIA = false;
           if (respostaServidor.success && respostaServidor.data) {
+            
+            // --- NOVA LÓGICA DE PERSISTÊNCIA ---
             const cacheKey = 'cache_auditoria_gemini';
             let cacheAtual = JSON.parse(localStorage.getItem(cacheKey) || '{}');
 
             respostaServidor.data.forEach(item => {
               const op = this.operacoesOrdenadas[item.id];
               if (op) {
-                const idUnico = `${op.ticker}_${op.codigo}`;
+                const idUnico = `${this.getVal(op, 'Ticker')}_${this.getVal(op, 'Código')}`;
                 op.respostaIA = item.analise;
-                cacheAtual[idUnico] = { texto: item.analise, timestamp: Date.now() };
+                
+                // Salva no dicionário de cache usando o Ativo_Código como chave
+                cacheAtual[idUnico] = {
+                  texto: item.analise,
+                  timestamp: Date.now()
+                };
               }
             });
+
             localStorage.setItem(cacheKey, JSON.stringify(cacheAtual));
+            // ----------------------------------
+
+            console.log("✅ Auditoria salva no cache do navegador.");
           }
         })
+
         .withFailureHandler((erroCritico) => {
           this.loadingIA = false;
-          alert("Erro crítico: O servidor demorou muito a responder.");
+          console.error("Falha crítica de comunicação com o servidor:", erroCritico);
+          alert("Erro crítico: O servidor demorou muito a responder ou está indisponível.");
         })
-        .apiAnalisarOperacoesAtivas(payload); 
+        .apiAnalisarOperacoesAtivas(payload); // Chama a função do seu novo arquivo 011!
+    },
+
+
+    // =======================================================
+    // --- NOVAS CORES PARA OS VALORES TÉCNICOS ---
+    // =======================================================
+
+    // 1. Colore o número cru do IFR (Ex: 75 fica vermelho, 25 fica verde)
+    getIfrNumStyle(op) {
+        const val = this._parseNum(this.getVal(op, 'IFR14'));
+        // Usamos 'font-black' para destacar bem o número colorido
+        if (val >= 70) return 'text-rose-600 font-black';
+        if (val <= 30) return 'text-emerald-600 font-black';
+        return 'text-slate-700'; // Cor neutra padrão
+    },
+
+    // 2. Compara o Preço Spot com a Média (M20, M200)
+    getMeanComparisonStyle(op, meanKey) {
+        const spot = this._parseNum(this.getVal(op, 'Spot'));
+        const mean = this._parseNum(this.getVal(op, meanKey));
+
+        if (spot === 0 || mean === 0) return 'text-slate-500';
+
+        // Se o preço está ACIMA da média, é um sinal de força (Verde)
+        if (spot > mean) return 'text-emerald-600 font-black';
+        // Se o preço está ABAIXO da média, é um sinal de fraqueza (Vermelho)
+        if (spot < mean) return 'text-rose-600 font-black';
+        
+        return 'text-slate-700';
     }
+
   },
+
 
   mounted() {
     if(window.lucide) setTimeout(() => lucide.createIcons(), 100);
+    // Recupera as análises do LocalStorage se existirem
     this.recuperarCacheIA();
-  }
+}
+
 };
 </script>

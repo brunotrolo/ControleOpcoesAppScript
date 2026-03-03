@@ -1,65 +1,210 @@
 <script>
-  
-const Agregador = {
-  processarSumario(operacoes) {
-    if (!operacoes || operacoes.length === 0) return this._gerarSumarioVazio();
-    const ativas = operacoes.filter(op => String(op.status || '').toUpperCase() === 'ATIVO');
-    const total = ativas.length;
-    if (total === 0) return this._gerarSumarioVazio();
 
-    const cubo = {
-      listaAtivas: ativas, contagem: total, somas: {}, medias: {}, maximos: {}, minimos: {},
-      agrupamentos: { porTicker: {}, porVencimento: {}, porMoneyness: {}, porEstrategia: {}, porPrazo: { curto: 0, medio: 0, longo: 0 }, porResultado: { lucro: 0, prejuizo: 0, empate: 0 } },
-      timestamp: new Date().toLocaleTimeString('pt-BR')
+/**
+ * O CÉREBRO DO SISTEMA (Agregador v5.2 - Edição de Precisão)
+ * Blindado contra conflitos de nomes (Moneyness vs Moneyness_Code).
+ */
+const Agregador = {
+  
+  processarSumario(cockpitLimpo) {
+    const defaultRet = this._retornoVazio();
+    
+    if (!Array.isArray(cockpitLimpo) || cockpitLimpo.length === 0) return defaultRet;
+    const primeiraLinhaValida = cockpitLimpo.find(row => row && typeof row === 'object');
+    if (!primeiraLinhaValida) return defaultRet;
+
+    // A. Mapeamento das colunas com busca de precisão
+    const colunas = this._mapearColunas(Object.keys(primeiraLinhaValida));
+    
+    // B. Filtragem por Status
+    const opsAtivas = this._filtrarAtivas(cockpitLimpo, colunas.STATUS);
+    if (opsAtivas.length === 0) return defaultRet;
+
+    // C. Cálculos Independentes
+    const metricas = this._calcularMetricas(opsAtivas, colunas);
+    const moneyness = this._calcularMoneyness(opsAtivas, colunas);
+    const resultados = this._calcularResultados(opsAtivas, colunas);
+
+    return {
+      totalOps: opsAtivas.length,
+      listaAtivas: opsAtivas,
+      
+      plTotal: metricas.plTotal,
+      plTotalAtual: metricas.plTotalAtual,
+      plPctMedio: metricas.plPctMedio,
+      lucroMaxTotal: metricas.lucroMaxTotal,
+      perdaMaxTotal: metricas.perdaMaxTotal,
+      nocionalTotal: metricas.nocionalTotal,
+      ganhoMaximo: metricas.ganhoMaximo,
+      custoZeragem: metricas.custoZeragem,
+      premioMedio: metricas.premioMedio, // <--- ADICIONE ISTO AQUI
+
+      deltaTotal: metricas.deltaTotal,
+      gammaTotal: metricas.gammaTotal,
+      vegaTotal: metricas.vegaTotal,
+      thetaTotal: metricas.thetaTotal,
+      rhoTotal: metricas.rhoTotal,
+
+      ivMedio: metricas.ivMedio,
+      poeMedio: metricas.poeMedio,
+      dteMedio: metricas.dteMedio,
+      volMedio: metricas.volMedio,
+      varMedia: metricas.varMedia,
+      qtdTotal: metricas.qtdTotal,
+
+      counts: moneyness.counts,
+      moneyness: moneyness.percent,
+      resultados: resultados
+    };
+  },
+
+  _retornoVazio() {
+    return {
+      totalOps: 0, plTotal: 0, thetaTotal: 0, custoZeragem: 0, ivMedio: 0,
+      deltaTotal: 0, gammaTotal: 0, vegaTotal: 0, rhoTotal: 0, 
+      poeMedio: 0, dteMedio: 0, nocionalTotal: 0,
+      counts: { otm: 0, atm: 0, itm: 0 },
+      moneyness: { otm: 0, atm: 0, itm: 0 },
+      resultados: { noLucro: { qtd: 0, pct: 0 }, noPrejuizo: { qtd: 0, pct: 0 }, noBreakeven: { qtd: 0, pct: 0 } },
+      listaAtivas: []
+    };
+  },
+
+  _mapearColunas(headers) {
+      const findCol = (termoAlvo) => {
+        const termo = String(termoAlvo).toUpperCase().trim();
+        // Ajuste de Precisão: Prioriza o nome exato para não pegar "MONEYNESS_CODE" por engano
+        return headers.find(h => h === termo) || 
+              headers.find(h => h.includes(termo));
+      };
+
+      return {
+        STATUS:      findCol('STATUS'),
+        PL_TOTAL:    findCol('P/L TOTAL'),
+        PL_PCT:      findCol('P/L TOTAL %'),
+        PL_ATUAL:    findCol('P/L ATUAL'),
+        THETA:       findCol('THETA'),
+        DELTA:       findCol('DELTA'),
+        GAMMA:       findCol('GAMMA'),
+        VEGA:        findCol('VEGA'),
+        RHO:         findCol('RHO'),
+        NOCIONAL:    findCol('NOCIONAL'),
+        LUCRO_MAX:   findCol('LUCRO MAX'),
+        PERDA_MAX:   findCol('PERDA MÁXIMA'),
+        GANHO_MAX:   findCol('GANHO MÁXIMO'),
+        MONEY:       findCol('MONEYNESS'), // <--- Agora ele busca o exato primeiro
+        IV:          findCol('IV_1Y_RANK'),
+        POE:         findCol('POE'),
+        DTE:         findCol('DTE UTEIS'),
+        QTD:         findCol('QTD'),
+        PREMIO_PM:   findCol('PRÊMIO (PM)'),
+        CUSTO:       findCol('PRÊMIO ATUAL'),
+        VOL:         findCol('VOLATILITY'),
+        VAR:         findCol('VARIATION')
+      };
+    },
+
+  _filtrarAtivas(dadosBrutos, colStatus) {
+    if (!colStatus) return [];
+    return dadosBrutos.filter(op => {
+      const status = String(op[colStatus] || '').toUpperCase().trim();
+      return status === 'ATIVO' || status === 'ATIVA';
+    });
+  },
+
+  _calcularMetricas(ops, col) {
+
+    let m = {
+      plTotal: 0, plTotalAtual: 0, plPctTotal: 0, thetaTotal: 0, 
+      deltaTotal: 0, gammaTotal: 0, vegaTotal: 0, rhoTotal: 0,
+      nocionalTotal: 0, lucroMaxTotal: 0, perdaMaxTotal: 0, ganhoMaximo: 0,
+      ivSoma: 0, poeSoma: 0, dteSoma: 0, volSoma: 0, varSoma: 0, 
+      qtdTotal: 0, custoZeragem: 0, premioPMTotal: 0, /* <-- ADD: Prêmio PM */
+      contaIv: 0, contaPoe: 0, contaDte: 0, contaPremio: 0
     };
 
-    ativas.forEach(op => {
-      // A: Processamento Numérico
-      Object.keys(op).forEach(key => {
-        const val = op[key];
-        if (typeof val === 'number') {
-          if (cubo.somas[key] === undefined) { cubo.somas[key] = 0; cubo.maximos[key] = val; cubo.minimos[key] = val; }
-          cubo.somas[key] += val;
-          if (val > cubo.maximos[key]) cubo.maximos[key] = val;
-          if (val < cubo.minimos[key]) cubo.minimos[key] = val;
-        }
-      });
+    ops.forEach(op => {
+      const num = (v) => Tradutor.limparNumero(v);
 
-      // B: Agrupamentos Simples (O(1) lookups)
-      this._agrupar(cubo.agrupamentos.porTicker, op.ticker || 'OUTROS', op);
-      this._agrupar(cubo.agrupamentos.porVencimento, op.vencimento || 'N/D', op);
-      this._agrupar(cubo.agrupamentos.porMoneyness, op.moneynessCode || 'N/D', op);
-      this._agrupar(cubo.agrupamentos.porEstrategia, op.id || 'SEM ESTRATEGIA', op);
+      if (col.PL_TOTAL) m.plTotal += num(op[col.PL_TOTAL]);
+      if (col.PL_ATUAL) m.plTotalAtual += num(op[col.PL_ATUAL]);
+      if (col.THETA)    m.thetaTotal += num(op[col.THETA]);
+      if (col.DELTA)    m.deltaTotal += num(op[col.DELTA]);
+      if (col.GAMMA)    m.gammaTotal += num(op[col.GAMMA]);
+      if (col.VEGA)     m.vegaTotal  += num(op[col.VEGA]);
+      if (col.NOCIONAL) m.nocionalTotal += num(op[col.NOCIONAL]);
+      if (col.LUCRO_MAX) m.lucroMaxTotal += num(op[col.LUCRO_MAX]);
+      if (col.GANHO_MAX) m.ganhoMaximo += num(op[col.GANHO_MAX]);
+      if (col.QTD)       m.qtdTotal += num(op[col.QTD]);
+      if (col.PL_PCT)    m.plPctTotal += num(op[col.PL_PCT]);
 
-      // C: Gaveta de Prazos (DTE)
-      const dte = op.dte || 0;
-      if (dte <= 15) cubo.agrupamentos.porPrazo.curto++;
-      else if (dte <= 45) cubo.agrupamentos.porPrazo.medio++;
-      else cubo.agrupamentos.porPrazo.longo++;
+      // --- NOVO: Captura os Prêmios ---
+      // Se você mapeou PREMIO_PM no _mapearColunas, você precisa capturar aqui
+      // Como não vi PREMIO_PM no seu mapeamento atual, vamos usar o Custo
+      if (col.CUSTO) {
+         m.custoZeragem += num(op[col.CUSTO]); 
+      }
 
-      // D: Gaveta de Resultados (P/L)
-      const pl = op.plTotalRs || 0;
-      if (pl > 1) cubo.agrupamentos.porResultado.lucro++;
-      else if (pl < -1) cubo.agrupamentos.porResultado.prejuizo++;
-      else cubo.agrupamentos.porResultado.empate++;
+      if (col.PREMIO_PM) {
+         m.premioPMTotal += num(op[col.PREMIO_PM]); // <--- ADICIONE ESTA LINHA AQUI
+      }
+
+      const dteVal = num(op[col.DTE]);
+      if (dteVal !== 0) { m.dteSoma += dteVal; m.contaDte++; }
+
+      const ivVal = num(op[col.IV]); if (ivVal !== 0) { m.ivSoma += ivVal; m.contaIv++; }
+      const poeVal = num(op[col.POE]); if (poeVal !== 0) { m.poeSoma += poeVal; m.contaPoe++; }
     });
 
-    Object.keys(cubo.somas).forEach(k => { cubo.medias[k] = cubo.somas[k] / total; });
-    return cubo;
+    const len = ops.length || 1;
+    return {
+      ...m, // Mantém os acumulados
+      plPctMedio: m.plPctTotal, // Removemos a divisão por 'len' para mostrar a soma real de -496,50%
+      ivMedio: m.contaIv > 0 ? (m.ivSoma / m.contaIv) : 0,
+      poeMedio: m.contaPoe > 0 ? (m.poeSoma / m.contaPoe) : 0,
+      dteMedio: m.contaDte > 0 ? (m.dteSoma / m.contaDte) : 0,
+      premioMedio: m.premioPMTotal // <--- TROQUE PARA ISTO (Sem dividir, pega a soma real!)    
+      };
   },
 
-  _agrupar(storage, chave, op) {
-    if (!storage[chave]) { storage[chave] = { count: 0, plTotal: 0, nocional: 0, delta: 0, items: [] }; }
-    const s = storage[chave];
-    s.count++;
-    s.plTotal += (op.plTotalRs || 0);
-    s.nocional += (op.nocional || 0);
-    s.delta += (op.delta || 0);
-    s.items.push(op);
+  _calcularMoneyness(ops, colunas) {
+    let otm = 0, itm = 0, atm = 0;
+    ops.forEach(op => {
+      const money = String(op[colunas.MONEY] || '').toUpperCase().trim();
+      if (money === 'OTM') otm++;
+      else if (money === 'ITM') itm++;
+      else if (money === 'ATM') atm++;
+      // Fallback para caso o texto seja "OTM (Fora)" ou algo similar
+      else if (money.includes('OTM')) otm++;
+      else if (money.includes('ITM')) itm++;
+      else if (money.includes('ATM')) atm++;
+    });
+    const total = (otm + itm + atm) || 1;
+    return {
+      counts: { otm, itm, atm },
+      percent: {
+        otm: Math.round((otm / total) * 100),
+        atm: Math.round((atm / total) * 100),
+        itm: Math.round((itm / total) * 100)
+      }
+    };
   },
 
-  _gerarSumarioVazio() {
-    return { listaAtivas: [], contagem: 0, somas: {}, medias: {}, agrupamentos: { porTicker: {}, porVencimento: {}, porMoneyness: {}, porEstrategia: {}, porPrazo: { curto: 0, medio: 0, longo: 0 }, porResultado: { lucro: 0, prejuizo: 0, empate: 0 } } };
+  _calcularResultados(ops, colunas) {
+    let lucroQtd = 0, prejuQtd = 0, breakQtd = 0;
+    ops.forEach(op => {
+      const pl = Tradutor.limparNumero(op[colunas.PL_TOTAL]);
+      if (pl > 0.01) lucroQtd++;
+      else if (pl < -0.01) prejuQtd++;
+      else breakQtd++;
+    });
+    const total = (lucroQtd + prejuQtd + breakQtd) || 1;
+    return {
+      noLucro: { qtd: lucroQtd, pct: Math.round((lucroQtd / total) * 100) },
+      noPrejuizo: { qtd: prejuQtd, pct: Math.round((prejuQtd / total) * 100) },
+      noBreakeven: { qtd: breakQtd, pct: Math.round((breakQtd / total) * 100) }
+    };
   }
 };
+
 </script>

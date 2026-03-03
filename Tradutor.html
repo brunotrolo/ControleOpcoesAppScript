@@ -1,251 +1,95 @@
 <script>
-  
+/**
+ * TRADUTOR V3.0 - "The Gates Standard"
+ */
 const Tradutor = {
-  
-  // 📚 DICIONÁRIO BASE (Comum a quase todas as abas)
-  BASE_DICT: {
-    'ID_TRADE':           { key: 'idTrade',           type: 'texto' },
-    'ID ESTRATÉGIA':      { key: 'id',                type: 'texto' },
-    'STATUS':             { key: 'status',            type: 'texto' },
-    'TICKER':             { key: 'ticker',            type: 'texto' },
-    'CÓDIGO OPÇÃO':       { key: 'codigo',            type: 'texto' },
-    'NOME EMPRESA':       { key: 'nomeEmpresa',       type: 'texto' },
-    'NOME EPRESA':        { key: 'nomeEmpresa',       type: 'texto' }, 
-    'SETOR':              { key: 'setor',             type: 'texto' },
-    'VENDA/COMPRA':       { key: 'direcao',           type: 'texto' },
-    'TIPO':               { key: 'tipo',              type: 'texto' },
-    'DATA TRADE':         { key: 'dataTrade',         type: 'data' },
-    'MÊS TRADE':          { key: 'mesTrade',          type: 'inteiro' },
-    'VENCIMENTO':         { key: 'vencimento',        type: 'data' },
-    'MÊS VENCIMENTO':     { key: 'mesVencimento',     type: 'inteiro' },
-    'DTE CORRIDOS':       { key: 'dte',               type: 'inteiro' },
-    'DTE UTEIS':          { key: 'dteUteis',          type: 'inteiro' },
-    'STRIKE':             { key: 'strike',            type: 'moeda' },
-    'NOCIONAL':           { key: 'nocional',          type: 'moeda' },
-    'QTDE':               { key: 'qtd',               type: 'inteiro' },
-    'QTD':                { key: 'qtd',               type: 'inteiro' },
-    'DELTA':              { key: 'delta',             type: 'numero' },
-    'GAMMA':              { key: 'gamma',             type: 'numero' },
-    'THETA':              { key: 'theta',             type: 'numero' },
-    'VEGA':               { key: 'vega',              type: 'numero' },
-    'RHO':                { key: 'rho',               type: 'numero' },
-    'CHAVE':              { key: 'chave',             type: 'texto' },
-    'VALOR':              { key: 'valor',             type: 'texto' },
-    'CONTROLE':           { key: 'controle',          type: 'inteiro' }
-  },
+  processar(matriz, isLiteral = false) {
+      if (!matriz || matriz.length < 1) return [];
+      const cabecalhos = matriz[0].map(h => h.toString().trim().toUpperCase());
+      const corpoDados = matriz.slice(1);
 
-  // 🎯 OVERRIDES DE CONTEXTO (Regras Específicas por Aba)
-  CONTEXTOS: {
-    
-    'COCKPIT': {
-      'TICKER SPOT':      { key: 'spot',              type: 'moeda' },
-      'PRÊMIO (PM)':      { key: 'premioPm',          type: 'moeda' },
-      'PRÊMIO ATUAL':     { key: 'premioAtual',       type: 'moeda' },
-      'PRICE':            { key: 'precoTeorico',      type: 'moeda' }, // Preço calculado (Greeks)
-      'P/L TOTAL':        { key: 'plUnitario',        type: 'moeda' },
-      'P/L ATUAL':        { key: 'plTotalRs',         type: 'moeda' },
-      'P/L TOTAL %':      { key: 'plTotalPct',        type: 'percentual' },
-      'GANHO MÁXIMO':     { key: 'ganhoMaximo',       type: 'moeda' },
-      'PERDA MÁXIMA':     { key: 'perdaMaxima',       type: 'moeda' },
-      'LUCRO MAX':        { key: 'lucroMaxPct',       type: 'percentual' },
-      'MONEYNESS_CODE':   { key: 'moneynessCode',     type: 'texto' },
-      'MONEYNESS':        { key: 'moneynessRatio',    type: 'numero' },
-      'IV_1Y_RANK':       { key: 'iv',                type: 'percentual' },
-      'IV_CURRENT':       { key: 'ivCurrent',         type: 'percentual' },
-      'VOLATILITY':       { key: 'volatilidade',      type: 'percentual' },
-      'POE':              { key: 'poe',               type: 'percentual' },
-      'VARIATION':        { key: 'variacao',          type: 'percentual' },
-      'BREAK-EVEN':       { key: 'breakEven',         type: 'moeda' }
+      const dadosValidos = [];
+      // LOOP COM TRAVA: Para no primeiro momento que a linha for nula ou um "Subtotal"
+      for (let i = 0; i < corpoDados.length; i++) {
+        const row = corpoDados[i];
+        const primeiraCelula = String(row[0] || '').trim().toUpperCase();
+        
+        // Se a célula estiver vazia OU for um cabeçalho de subtotal da sua planilha, PARA TUDO.
+        if (primeiraCelula === "" || primeiraCelula.includes("SUBTOTAL")) break;
+        
+        const objetoRow = cabecalhos.reduce((acc, header, j) => {
+          const valorBruto = row[j];
+          if (!isLiteral && this._isFinanceiro(header)) {
+            acc[header] = this.limparNumero(valorBruto);
+          } else {
+            acc[header] = valorBruto;
+          }
+          return acc;
+        }, {});
+        
+        dadosValidos.push(objetoRow);
+      }
+
+      console.log("🚀 [Corte de Segurança] Linhas processadas:", dadosValidos.length);
+      return dadosValidos;
     },
 
-    'NECTON_IMPORT': {
-      'ATIVO':            { key: 'codigo',            type: 'texto' },
-      'TICKER':           { key: 'ticker',            type: 'texto' },
-      'STATUS':           { key: 'statusOrdem',       type: 'texto' }, // A 1ª coluna Status (Ordem Necton)
-      'STATUS_2':         { key: 'status',            type: 'texto' }, // A 2ª coluna Status (Nosso Status Ativo/Encerrado)
-      'C/V':              { key: 'direcao',           type: 'texto' },
-      'QUANTIDADE':       { key: 'qtd',               type: 'inteiro' },
-      'PREÇO':            { key: 'premioPm',          type: 'moeda' },
-      'VALOR TOTAL':      { key: 'valorTotal',        type: 'moeda' },
-      'DATA NEGÓCIO':     { key: 'dataTrade',         type: 'data' },
-      'PRAZO/VENCIMENTO': { key: 'vencimento',        type: 'data' },
-      'MERCADO':          { key: 'mercado',           type: 'texto' }
-    },
-
-    'DADOS_ATIVOS': {
-      'NAME':             { key: 'nomeEmpresa',       type: 'texto' },
-      'CLOSE':            { key: 'spot',              type: 'moeda' }, // Fechamento da Ação
-      'PRICE':            { key: 'spot',              type: 'moeda' },
-      'VARIATION':        { key: 'variacao',          type: 'percentual' }
-    },
-
-    'DADOS_DETALHES': {
-      'SYMBOL':           { key: 'codigo',            type: 'texto' },
-      'PARENT_SYMBOL':    { key: 'ticker',            type: 'texto' },
-      'CLOSE':            { key: 'precoFechamentoOpcao', type: 'moeda' }, // Fechamento da Opção
-      'VOLUME':           { key: 'volume',            type: 'inteiro' },
-      'CHANGE_PCT':       { key: 'variacao',          type: 'percentual' }
-    },
-
-    'GREEKS': { // Serve para Calc_Greeks e Dados_Greeks
-      'ATIVO':            { key: 'codigo',            type: 'texto' },
-      'SYMBOL':           { key: 'codigo',            type: 'texto' },
-      'UNDERLYING':       { key: 'ticker',            type: 'texto' },
-      'PRICE':            { key: 'precoTeorico',      type: 'moeda' },
-      'MONEYNESS':        { key: 'moneynessRatio',    type: 'numero' },
-      'MONEYNESS_CODE':   { key: 'moneynessCode',     type: 'texto' },
-      'VOLATILITY':       { key: 'volatilidade',      type: 'percentual' },
-      'POE':              { key: 'poe',               type: 'percentual' },
-      'RISK FREE RATE':   { key: 'taxaLivreRisco',    type: 'percentual' }
-    },
-
-    'TENDENCIAS': { // Dados_Ativos_Historico_Tendencia
-      'SYMBOL':           { key: 'ticker',            type: 'texto' },
-      'IFR14':            { key: 'ifr14',             type: 'numero' },
-      'BANDA_SUP':        { key: 'bandaSup',          type: 'moeda' },
-      'BANDA_INF':        { key: 'bandaInf',          type: 'moeda' },
-      'LARGURA_BANDA':    { key: 'larguraBanda',      type: 'numero' },
-      'MMA5':             { key: 'mma5',              type: 'moeda' },
-      'MMA20':            { key: 'mma20',             type: 'moeda' },
-      'MMA200':           { key: 'mma200',            type: 'moeda' },
-      'DIST. MMA200':     { key: 'distMma200',        type: 'percentual' },
-      'VEREDITO_TENDENCIA': { key: 'vereditoTendencia', type: 'texto' },
-      'STATUS_IFR':       { key: 'statusIfr',         type: 'texto' },
-      'STATUS_BOLLINGER': { key: 'statusBollinger',   type: 'texto' }
+  limparNumero(val) {
+    if (typeof val === 'number') return val;
+    if (val === undefined || val === null || val === "") return 0;
+    try {
+      let strVal = val.toString().trim();
+      const isNegative = strVal.includes('-');
+      let clean = strVal
+        .replace(/[R$\s%]/g, '') // Limpa R$, espaços e % de uma vez, preservando o "-"
+        .replace(/\./g, '')   
+        .replace(',', '.');   
+      const num = Number(clean);
+      return isNaN(num) ? val : num;
+    } catch (e) {
+      console.warn("⚠️ Falha ao limpar campo:", val);
+      return val;
     }
   },
 
   /**
-   * O Motor Principal de ETL
-   * @param {Array} matrizRaw - Os dados brutos do Google Sheets
-   * @param {String} contexto - Qual aba estamos a ler (ex: 'COCKPIT', 'NECTON_IMPORT')
+   * ESTA FUNÇÃO VEIO DA API.GS - Arrumação de Gaveta
    */
-  processar(matrizRaw, contexto = 'GLOBAL', ignorarCabecalho = false) {
-    if (!matrizRaw || matrizRaw.length < 2) return [];
-    
-    // 1. Desduplicador Inteligente de Cabeçalhos (Resolve o duplo Status da Necton)
-    const cabecalhoLimpo = [];
-    const contagemChaves = {};
-    
-    matrizRaw[0].forEach(h => {
-      let base = String(h || '').trim().toUpperCase();
-      if (contagemChaves[base]) {
-        contagemChaves[base]++;
-        cabecalhoLimpo.push(`${base}_${contagemChaves[base]}`); // Ex: STATUS_2
-      } else {
-        contagemChaves[base] = 1;
-        cabecalhoLimpo.push(base);
-      }
-    });
-
-    const dados = ignorarCabecalho ? matrizRaw : matrizRaw.slice(1);
-    
-    // 2. Mescla o Dicionário Base com as Regras Específicas do Contexto
-    const dicionarioAtivo = { ...this.BASE_DICT, ...(this.CONTEXTOS[contexto] || {}) };
-    
-    // 3. Constrói o Mapeador Semântico
-    const mapaColunas = cabecalhoLimpo.map((colNome, index) => {
-      const definicao = dicionarioAtivo[colNome];
-      if (definicao) {
-        return { index, key: definicao.key, type: definicao.type };
-      }
-      return { index, key: this._camelize(colNome), type: 'texto_raw' };
-    }).filter(c => c.key !== '');
-
-    const processados = [];
-
-    // 4. Varredura e Limpeza
-    for (const linha of dados) {
-      if (!linha || linha.length === 0) continue;
-      const primeiraCelula = String(linha[0] || '').trim().toUpperCase();
-      if (primeiraCelula === '' || primeiraCelula.includes('SUBTOTAL')) continue;
-
-      const obj = {};
-      
-      for (const col of mapaColunas) {
-        const valorBruto = linha[col.index];
-        obj[col.key] = this._parseTipado(valorBruto, col.type);
-        
-        if (col.type === 'data') {
-          obj[col.key + 'Date'] = this._gerarTimestamp(valorBruto);
-        }
-      }
-      processados.push(obj);
-    }
-
-    return processados;
-  },
-
-  /**
-   * --- FUNÇÕES PRIVADAS DO MOTOR DE TIPAGEM ---
-   */
-  
-  _parseTipado(valor, tipo) {
-    if (valor === null || valor === undefined || valor === '') {
-      return (tipo === 'moeda' || tipo === 'numero' || tipo === 'percentual' || tipo === 'inteiro') ? 0 : '';
-    }
-
-    const vStr = String(valor).trim();
-
-    switch (tipo) {
-      case 'texto':
-      case 'texto_raw':
-        return vStr;
-        
-      case 'inteiro':
-        const intVal = parseInt(vStr.replace(/\D/g, ''), 10);
-        return isNaN(intVal) ? 0 : intVal;
-
-      case 'moeda':
-      case 'numero':
-      case 'percentual':
-        return this._limparNumero(vStr);
-
-      case 'data':
-        return vStr; 
-
-      default:
-        return vStr;
-    }
-  },
-
-  _limparNumero(valorStr) {
-    if (typeof valorStr === 'number') return valorStr;
-    
-    let limpo = String(valorStr).replace(/R\$\s?/g, '').replace(/%/g, '').trim();
-    
-    if (limpo.includes(',') && limpo.includes('.')) {
-      if (limpo.lastIndexOf(',') > limpo.lastIndexOf('.')) {
-        limpo = limpo.replace(/\./g, '').replace(',', '.'); 
-      } else {
-        limpo = limpo.replace(/,/g, ''); 
-      }
-    } else if (limpo.includes(',')) {
-      limpo = limpo.replace(',', '.');
-    }
-    
-    const floatVal = parseFloat(limpo);
-    return isNaN(floatVal) ? 0 : floatVal;
-  },
-
-  _gerarTimestamp(dataStr) {
-    if (dataStr instanceof Date) return dataStr.getTime();
-    const str = String(dataStr).trim();
-    if (str.includes('/')) {
-        const partes = str.split(' ')[0].split('/'); 
-        if (partes.length === 3) {
-            return new Date(partes[2], partes[1] - 1, partes[0]).getTime();
-        }
-    }
-    return 0;
-  },
-
-  _camelize(str) {
-    return str.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (m, chr) => chr.toUpperCase());
-  },
-
   formatarMoeda(valor) {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+    if (!valor || valor === "") return "R$ 0,00";
+    let numero = parseFloat(valor.toString().replace(',', '.'));
+    return numero.toLocaleString('pt-BR', { 
+      style: 'currency', 
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2 
+    });
+  },
+
+  _isFinanceiro(header) {
+    const nomes = [
+      'P/L', 'PREMIO', 'PRÊMIO', 'STRIKE', 'NOCIONAL', 
+      'DELTA', 'THETA', 'GAMMA', 'VEGA', 'RHO', 'POE',
+      'IV', 'GANHO', 'LUCRO', 'PERDA', 'VALOR', 'SPOT', 'QTD',
+      'VARIATION', 'PRICE', 'VOLATILITY', 'DTE', 'BREAK-EVEN'
+    ];
+    const upperHeader = String(header).toUpperCase();
+    return nomes.some(n => upperHeader.includes(n));
+  },
+
+  homologar() {
+    console.log("%c🧪 Iniciando Homologação do Tradutor...", "color: #818cf8; font-weight: bold;");
+    const amostraBruta = [
+      ["ID", "TICKER", "STATUS", "P/L ATUAL", "DELTA"],
+      ["1", "PETR4", "ATIVO", "R$ 1.250,50", "-15,5%"],
+      ["2", "VALE3", "ENCERRADO", "-R$ 500,00", "10,0%"]
+    ];
+    const resultado = this.processar(amostraBruta);
+    console.table(resultado);
+    const erro = resultado[0]["P/L ATUAL"] !== 1250.5 || resultado[1]["DELTA"] !== 10.0;
+    if (erro) console.error("❌ Falha no teste de saneamento.");
+    else console.log("%c✅ Tradutor homologado!", "color: #10b981;");
+    return resultado;
   }
 };
 </script>

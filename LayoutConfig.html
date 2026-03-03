@@ -81,30 +81,29 @@ const LAYOUT_MAP = {
       props: {
         dataKey: 'cockpit',
         columns: [
-          { key: 'id', label: 'ID', type: 'text' },
-          { key: 'ticker', label: 'Ativo', type: 'text' },
-          { key: 'codigo', label: 'Opção', type: 'text' },
-          { key: 'vencimentoDate', label: 'Vencimento', type: 'date' },
-          { key: 'direcao', label: 'Venda/Compra', type: 'text' },
-          { key: 'tipo', label: 'Tipo', type: 'text' },
-          { key: 'qtd', label: 'Qtd', type: 'number' },
-          { key: 'strike', label: 'Strike', type: 'currency' },
-          { key: 'spot', label: 'Spot', type: 'currency' },
-          { key: 'moneynessCode', label: 'Moneyness', type: 'text' }, // <-- Aqui
-          { key: 'premioPm', label: 'Prêmio (PM)', type: 'currency' },
-          { key: 'premioAtual', label: 'Prêmio Atual', type: 'currency' },
-          { key: 'ganhoMaximo', label: 'Ganho Max', type: 'currency' },
-          { key: 'lucroMaxPct', label: 'Lucro Max', type: 'percentage' },
-          { key: 'nocional', label: 'Nocional', type: 'currency' },
-          { key: 'plTotalPct', label: 'P/L %', type: 'percentage' },
-          { key: 'plUnitario', label: 'P/L Unitário', type: 'currency' }, // <-- Aqui
-          { key: 'plTotalRs', label: 'P/L Total', type: 'currency' }, // <-- Aqui
-          { key: 'delta', label: 'Delta', type: 'number' }
+          { key: 'ID ESTRATÉGIA', label: 'ID', type: 'text' },
+          { key: 'TICKER', label: 'Ativo', type: 'text' },
+          { key: 'CÓDIGO OPÇÃO', label: 'Opção', type: 'text' },
+          { key: 'VENCIMENTO', label: 'Vencimento', type: 'date' },
+          { key: 'VENDA/COMPRA', label: 'Venda/Compra', type: 'text' },
+          { key: 'TIPO', label: 'Tipo', type: 'text' },
+          { key: 'QTD', label: 'Qtd', type: 'number' },
+          { key: 'STRIKE', label: 'Strike', type: 'currency' },
+          { key: 'TICKER SPOT', label: 'Spot', type: 'currency' },
+          { key: 'MONEYNESS_CODE', label: 'Moneyness', type: 'text' },
+          { key: 'PRÊMIO (PM)', label: 'Prêmio (PM)', type: 'currency' },
+          { key: 'PRÊMIO ATUAL', label: 'Prêmio Atual', type: 'currency' },
+          { key: 'GANHO MÁXIMO', label: 'Ganho Max', type: 'currency' },
+          { key: 'LUCRO MAX', label: 'Lucro Max', type: 'percentage' },
+          { key: 'NOCIONAL', label: 'Nocional', type: 'currency' },
+          { key: 'P/L TOTAL %', label: 'P/L %', type: 'percentage' },
+          { key: 'P/L TOTAL', label: 'P/L', type: 'currency' },
+          { key: 'P/L ATUAL', label: 'P/L Atual', type: 'currency' },
+          { key: 'DELTA', label: 'Delta', type: 'percentage' }
         ]
       }
     }
   ],
-
   'automacao': [
     {
       id: 'painel-automacao',
@@ -165,16 +164,22 @@ const LAYOUT_MAP = {
 
 /**
  * 📱 MOBILE_ORCHESTRATOR_CONFIG
- * Define a sequência e as regras de exibição para a "Esteira de Inteligência" no celular.
+ * Define a sequência e as regras de exibição para a "Esteira de Inteligência" no S22 Ultra.
+ * Esta lógica é ignorada no Desktop, mantendo o layout original intacto.
  */
 const MOBILE_ORCHESTRATOR_CONFIG = {
+  // Ativa/Desativa a esteira globalmente no mobile
   enabled: true,
+
+  // Configurações do Molde (Wrapper)
   settings: {
-    cardWidth: 'min-w-[85%]',
-    cardHeight: 'h-[260px]', 
-    gap: 'gap-5',             
-    snap: 'snap-center'       
+    cardWidth: 'min-w-[85%]', // XX% para garantir o "peek" (espreita) de Y% do próximo card
+    cardHeight: 'h-[260px]',  // Altura padronizada para evitar saltos no scroll
+    gap: 'gap-5',             // Espaçamento entre os cards na esteira
+    snap: 'snap-center'       // Efeito de trava no meio da tela
   },
+
+  // 🚀 SEQUÊNCIA MESTRA: A ordem exata que os cards aparecerão no Carrossel
   sequence: [
     { id: 'distribuicao-risco',  component: 'card-distrib-moneyness' },
     { id: 'resultado',           component: 'card-resultado' },
