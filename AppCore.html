@@ -1,0 +1,332 @@
+<script>
+const { createApp, ref, onMounted, computed } = Vue;
+
+const app = createApp({
+  setup() {
+    const currentView = ref('cockpit'); 
+    const status = ref('Iniciando...');
+    const isLoading = ref(true); // 🚀 ROTA 1: Estado global para Skeleton Loaders
+    const isMobile = ref(false); // 📱 Sensor de Hardware
+    
+    // --- Controle do Menu Adaptativo ---
+    const isCollapsed = ref(true); 
+    const toggleSidebar = () => { 
+      isCollapsed.value = !isCollapsed.value;
+      setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 310);
+    };
+
+    // 🚨 SENSOR DE HARDWARE INFALÍVEL
+    const handleResize = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+      const isMobileHardware = /android|ipad|iphone|ipod/i.test(userAgent.toLowerCase());
+      const isSmallScreen = window.innerWidth < 1024; 
+      
+      // Se for hardware mobile OU tela pequena, aciona o modo Mobile
+      isMobile.value = isMobileHardware || isSmallScreen;
+      
+      if (isMobile.value) isCollapsed.value = true;
+    };
+
+    const db = ref({
+      cockpit: [],
+      resumoGerencial: {},
+      config: {},
+      configRaw: [],
+      styles: {},
+      logs: [],
+      ativos: [],
+      scannerOportunidades: [],
+      scannerTendencias: []
+    });
+
+    const dynamicSummaryData = computed(() => {
+      const s = db.value.resumoGerencial;
+      const cfg = db.value.config;
+      const fullMapeamento = [
+        { id: 'ID_TRADE', val: 'N/A', type: 'num' },
+        { id: 'ID_ESTRATEGIA', val: 'N/A', type: 'num' },
+        { id: 'STATUS', val: 'ATIVO', type: 'num' },
+        { id: 'DATA_TRADE', val: 'N/A', type: 'num' },
+        { id: 'MES_TRADE', val: 'N/A', type: 'num' },
+        { id: 'VENCIMENTO', val: 'N/A', type: 'num' },
+        { id: 'MES_VENCIMENTO', val: 'N/A', type: 'num' },
+        { id: 'DTE_CORRIDOS', val: s.dteMedio, type: 'num' },
+        { id: 'DTE_UTEIS', val: s.dteMedio, type: 'num' },
+        { id: 'CODIGO_OPCAO', val: 'N/A', type: 'num' },
+        { id: 'TICKER', val: 'N/A', type: 'num' },
+        { id: 'NOME_EMPRESA', val: 'N/A', type: 'num' },
+        { id: 'SETOR', val: 'N/A', type: 'num' },
+        { id: 'VENDA_COMPRA', val: 'N/A', type: 'num' },
+        { id: 'TIPO', val: 'N/A', type: 'num' },
+        { id: 'QTD', val: s.qtdTotal, type: 'num' },
+        { id: 'STRIKE', val: 'N/A', type: 'num' },
+        { id: 'TICKER_SPOT', val: s.varMedia, type: 'num' },
+        { id: 'MONEYNESS_CODE', val: 'N/A', type: 'num' },
+        { id: 'PREMIO_PM', val: s.premioMedio, type: 'currency' },
+        { id: 'PREMIO_ATUAL', val: s.custoZeragem, type: 'currency' },
+        { id: 'GANHO_MAXIMO', val: s.ganhoMaximo, type: 'currency' },
+        { id: 'LUCRO_MAX', val: s.lucroMaxTotal, type: 'currency' },
+        { id: 'PERDA_MAXIMA', val: s.perdaMaxTotal, type: 'currency' },
+        { id: 'NOCIONAL', val: s.nocionalTotal, type: 'currency' },
+        { id: 'PL_TOTAL_PCT', val: s.plPctMedio, type: 'percentage' },
+        { id: 'PL_TOTAL', val: s.plTotal, type: 'currency' },
+        { id: 'PL_ATUAL', val: s.plTotalAtual, type: 'currency' },
+        { id: 'BREAK_EVEN', val: 'N/A', type: 'currency' },
+        { id: 'IV_CURRENT', val: s.ivMedio, type: 'percentage' },
+        { id: 'IV_1Y_RANK', val: s.ivMedio, type: 'percentage' },
+        { id: 'VARIATION', val: s.varMedia, type: 'percentage' },
+        { id: 'MONEYNESS', val: 'N/A', type: 'num' },
+        { id: 'PRICE', val: s.custoZeragem, type: 'currency' },
+        { id: 'VOLATILITY', val: s.volMedio, type: 'percentage' },
+        { id: 'POE', val: s.poeMedio, type: 'percentage' },
+        { id: 'DELTA', val: s.deltaTotal, type: 'num' },
+        { id: 'GAMMA', val: s.gammaTotal, type: 'num' },
+        { id: 'VEGA', val: s.vegaTotal, type: 'num' },
+        { id: 'THETA', val: s.thetaTotal, type: 'currency' },
+        { id: 'RHO', val: s.rhoTotal, type: 'num' },
+        { id: 'DIRECAO', val: 'N/A', type: 'num' },
+        { id: 'CONTROLE', val: 'N/A', type: 'num' }
+      ];
+
+      return fullMapeamento
+        .map(m => {
+          const show = cfg[`SHOW_${m.id}`];
+          const label = cfg[`LABEL_${m.id}`];
+          const order = cfg[`ORDER_${m.id}`];
+          return {
+            key: m.id, label: label || m.id.replace(/_/g, ' '), active: String(show).toUpperCase() === 'TRUE',
+            order: parseInt(order) || 999, value: m.val, type: m.type
+          };
+        })
+        .filter(m => m.active)
+        .sort((a, b) => a.order - b.order);
+    });
+
+    const menu = ref(APP_MENU);
+    const navigate = (viewId) => { 
+      currentView.value = viewId;
+      // No mobile, fecha a sidebar automaticamente ao navegar
+      if (isMobile.value) isCollapsed.value = true;
+    };
+    const currentLayout = computed(() => LAYOUT_MAP[currentView.value] || []);
+    const currentMenuLabel = computed(() => {
+      const item = menu.value.find(m => m.id === currentView.value);
+      return item ? item.label : 'Dashboard';
+    });
+
+    const formatCountdown = (segundos) => {
+      const min = Math.floor(segundos / 60);
+      const seg = segundos % 60;
+      return `${min}:${seg.toString().padStart(2, '0')}`;
+    };
+
+    // 🔄 SINCRONIZADOR COM GESTÃO DE LOADING
+    const sincronizarDashboard = (isBackground = false) => {
+      if (!isBackground) {
+        status.value = 'Sincronizando...';
+        isLoading.value = true; // 🚀 Ativa Skeletons
+      }
+      
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res && res.success) {
+            try {
+              const rawCockpit = res.raw['Cockpit'] ? res.raw['Cockpit'].slice(9) : [];
+              const cockpitLimpo = Tradutor.processar(rawCockpit);
+              const rawTendencia = res.raw['Dados_Ativos_Historico_Tendencia'] || [];
+              if (rawTendencia.length > 0) {
+                const tendenciaLimpa = Tradutor.processar(rawTendencia);
+                cockpitLimpo.forEach(op => {
+                  const ativoStr = String(op['TICKER'] || '').trim().toUpperCase();
+                  const dadosTecnicos = tendenciaLimpa.find(t => 
+                    String(t['TICKER'] || t['SYMBOL'] || '').trim().toUpperCase() === ativoStr
+                  );
+                  if (dadosTecnicos) Object.assign(op, dadosTecnicos);
+                });
+              }
+
+              const logsLimpos = Tradutor.processar(res.raw['Logs'] || []); 
+              const configArray = Tradutor.processar(res.raw['Config_Global'] || [], true);
+              const configObjeto = {};
+              configArray.forEach(item => { if (item.CHAVE) configObjeto[item.CHAVE.trim().toUpperCase()] = item.VALOR; });
+
+              const rawAtivos = res.raw['Dados_Ativos'] || [];
+              let ativosFiltrados = rawAtivos.length > 1 ? rawAtivos.slice(1).map(r => ({ ticker: r[0], name: r[2], close: r[7] })) : [];
+
+              const inteligencia = Agregador.processarSumario(cockpitLimpo);
+              inteligencia.timestamp = res.timestamp;
+
+              db.value.cockpit = cockpitLimpo;
+              db.value.resumoGerencial = inteligencia;
+              db.value.config = configObjeto;      
+              db.value.configRaw = configArray;    
+              db.value.logs = logsLimpos; 
+              db.value.ativos = ativosFiltrados;
+              db.value.scannerOportunidades = Tradutor.processar(res.raw['Scanner_Oportunidades'] || []);
+              db.value.scannerTendencias = Tradutor.processar(res.raw['Scanner_Tendencia_Oportunidades'] || []);
+
+              status.value = 'Online';
+            } catch (err) {
+              console.error("❌ Erro:", err);
+            } finally {
+              isLoading.value = false; // ✅ Desativa Skeletons
+            }
+          }
+        })
+        .withFailureHandler(err => {
+          status.value = 'Falha de Conexão';
+          isLoading.value = false;
+          console.error("❌ Falha:", err);
+        })
+        .getInitialData();
+    };
+
+    // 🚀 INJETOR DE PROPS INTELIGENTE
+    const getComponentProps = (compConfig) => {
+      // Base de props que TODO componente recebe
+      const baseProps = {
+        isMobile: isMobile.value,
+        isLoading: isLoading.value,
+        ...compConfig.props
+      };
+
+      const customProps = {
+        'ticker-tape': { ativos: db.value.ativos },
+        'card-summary': { summaryData: dynamicSummaryData.value, statsPreCalculados: db.value.resumoGerencial },
+        'card-distrib-moneyness': { operations: db.value.resumoGerencial.listaAtivas || [] },
+        'card-moneyness': { operations: db.value.resumoGerencial.listaAtivas || [] },
+        'card-vencimentos': { operations: db.value.resumoGerencial.listaAtivas || [] },
+        'card-concentracao': { operations: db.value.resumoGerencial.listaAtivas || [] },
+        'card-resultado': { operations: db.value.resumoGerencial.listaAtivas || [], statsPreCalculados: db.value.resumoGerencial },
+        'carousel-ativas': { operations: db.value?.resumoGerencial?.listaAtivas || [] },
+        'consultoria-view': { operations: db.value?.resumoGerencial?.listaAtivas || [] },
+        'cockpit-table': { data: db.value.cockpit, colorMap: db.value.styles },
+        'settings-view': { configItems: db.value.configRaw },
+        'automation-view': { logs: db.value.logs },
+        'log-console': { logs: db.value.logs },
+        'scanner-view': { dadosOportunidades: db.value.scannerOportunidades, dadosTendencias: db.value.scannerTendencias }
+      };
+
+      return { ...baseProps, ...(customProps[compConfig.component] ? customProps[compConfig.component] : {}) };
+    };
+
+    // --- LÓGICA DE SMART POLLING ---
+    let timerAtualizacao = null;
+    const isOrquestrando = ref(false); 
+    const isAutoSyncEnabled = ref(false);
+    const timerVisual = ref(15 * 60); 
+    const TEMPO_REFRESH = 15 * 60 * 1000;
+
+    const toggleAutoSync = () => {
+      isAutoSyncEnabled.value = !isAutoSyncEnabled.value;
+      isAutoSyncEnabled.value ? ligarTimer() : desligarTimer();
+    };
+
+    const rodarOrquestradorEAtualizar = () => {
+      if (isOrquestrando.value) return;
+      isOrquestrando.value = true; 
+      google.script.run
+        .withSuccessHandler(() => {
+          sincronizarDashboard(true); 
+          isOrquestrando.value = false; 
+          timerVisual.value = 15 * 60;  
+        })
+        .withFailureHandler(() => { isOrquestrando.value = false; })
+        .executarFluxoSequencial();
+    };
+
+    const ligarTimer = () => { if (!timerAtualizacao) timerAtualizacao = setInterval(rodarOrquestradorEAtualizar, TEMPO_REFRESH); };
+    const desligarTimer = () => { if (timerAtualizacao) { clearInterval(timerAtualizacao); timerAtualizacao = null; } };
+
+    onMounted(() => {
+      handleResize();
+      window.addEventListener('resize', handleResize);
+      sincronizarDashboard();
+      
+      setInterval(() => {
+        if (isAutoSyncEnabled.value && document.visibilityState === 'visible' && !isOrquestrando.value) {
+          if (timerVisual.value > 0) timerVisual.value--;
+          else rodarOrquestradorEAtualizar();
+        }
+      }, 1000);
+    });
+
+
+// --- 🚨 LÓGICA DE CAPTURA E FATIAMENTO ---
+
+    const carouselNames = MOBILE_ORCHESTRATOR_CONFIG.sequence.map(s => s.component);
+
+    // 1. TOPO: Mostra tudo no Desktop. No Mobile, mostra apenas o que vem ANTES do carrossel.
+    const topGridComponents = computed(() => {
+      const layoutBase = currentLayout.value;
+      if (!isMobile.value || !MOBILE_ORCHESTRATOR_CONFIG.enabled || currentView.value !== 'cockpit') {
+        return layoutBase; // Se for Desktop ou outra página, o Grid segue normal
+      }
+      
+      const firstIndex = layoutBase.findIndex(comp => carouselNames.includes(comp.component));
+      return firstIndex === -1 ? layoutBase : layoutBase.slice(0, firstIndex);
+    });
+
+    // 2. ESTEIRA: Só monta o carrossel se estiver no Mobile E na tela de Cockpit.
+    const mobileCarouselComponents = computed(() => {
+      if (!isMobile.value || !MOBILE_ORCHESTRATOR_CONFIG.enabled || currentView.value !== 'cockpit') {
+        return []; // Trava de segurança: mata a esteira nas outras telas
+      }
+      
+      return MOBILE_ORCHESTRATOR_CONFIG.sequence.map(item => {
+        const originalConfig = currentLayout.value.find(c => c.component === item.component) || {};
+        return { ...originalConfig, id: item.id, component: item.component, isCarouselItem: true };
+      });
+    });
+
+    // 3. FUNDO: Mostra apenas o que vem DEPOIS do carrossel (ex: Tabela) no Mobile.
+    const bottomGridComponents = computed(() => {
+      if (!isMobile.value || !MOBILE_ORCHESTRATOR_CONFIG.enabled || currentView.value !== 'cockpit') {
+        return [];
+      }
+      
+      const layoutBase = currentLayout.value;
+      const firstIndex = layoutBase.findIndex(comp => carouselNames.includes(comp.component));
+      if (firstIndex === -1) return [];
+      
+      return layoutBase.slice(firstIndex).filter(comp => !carouselNames.includes(comp.component));
+    });
+
+    return {
+      currentView, status, menu, currentLayout, currentMenuLabel, db, dynamicSummaryData, 
+      navigate, getComponentProps, handleRefresh: sincronizarDashboard, isCollapsed, toggleSidebar, 
+      timerVisual, formatCountdown, isOrquestrando, isAutoSyncEnabled, toggleAutoSync, 
+      isMobile, isLoading,
+      topGridComponents, mobileCarouselComponents, bottomGridComponents, // Novas variáveis fatiadas
+      MOBILE_ORCHESTRATOR_CONFIG
+    };
+  }
+});
+
+// Registro de Componentes
+[
+  ['menu-sidebar', MenuSidebar], 
+  ['settings-view', SettingsView], 
+  ['automation-view', AutomationView],
+  ['comparativo-view', ComparativoView], 
+  ['necton-import', NectonImport], 
+  ['gestao-ativos', GestaoAtivos],
+  ['gestao-ativos-sidebar', GestaoAtivosSidebar], 
+  ['log-console', LogConsole], 
+  ['card-summary', CardSummary],
+  ['card-distrib-moneyness', CardDistribMoneyness], 
+  ['card-moneyness', CardMoneyness], 
+  ['card-vencimentos', CardVencimentos],
+  ['card-concentracao', CardConcentracao], 
+  ['card-resultado', CardResultado], 
+  ['carousel-ativas', CarouselAtivas],
+  ['cockpit-table', CockpitTable], 
+  ['ticker-tape', TickerTape], 
+  ['scanner-view', ScannerView],
+  ['consultoria-view', ConsultoriaView], 
+  ['bancodedados-view', BancoDeDadosView]
+].forEach(([name, comp]) => app.component(name, comp));
+
+app.mount('#app');
+window.app = app;
+</script>

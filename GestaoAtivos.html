@@ -1,0 +1,384 @@
+<template id="gestao-ativos-template">
+  <div class="max-w-[95%] mx-auto font-sans pb-24 space-y-6 mt-6 animate-fade-in">
+    
+    <div class="premium-card px-8 py-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 z-10 relative">
+      
+      <div class="flex items-center gap-5">
+        <div class="p-3 bg-indigo-50 text-brand-indigo rounded-2xl shadow-sm border border-indigo-100/50">
+          <i data-lucide="layers" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h2 class="text-2xl font-black text-slate-900 tracking-tight">Gestão de Ativos</h2>
+          <p class="text-slate-400 text-[10px] uppercase tracking-[0.25em] font-bold mt-1">Livermore Intelligence Hub</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-4 w-full xl:w-auto justify-end">
+        
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <div class="relative flex-1 sm:w-56">
+            <i data-lucide="plus-circle" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+            <input 
+              v-model="novoTicker" 
+              @keyup.enter="adicionarAtivo"
+              placeholder="Novo Ticker (Ex: PETR4)" 
+              class="w-full bg-slate-50 border border-slate-200 rounded-full pl-11 pr-4 py-2 text-sm font-bold focus:ring-2 focus:ring-brand-indigo focus:bg-white transition-all shadow-inner text-slate-700"
+            >
+          </div>
+          <button 
+            @click="adicionarAtivo" 
+            :disabled="!novoTicker || isSaving" 
+            class="btn-action btn-action-primary px-6 py-2 whitespace-nowrap h-10"
+          >
+            <span v-if="!isSaving">Monitorar</span>
+            <div v-else class="w-4 h-4 animate-spin border-2 border-white/30 border-t-white rounded-full"></div>
+          </button>
+        </div>
+
+        <div class="hidden sm:block w-px h-8 bg-slate-200"></div>
+
+        <div class="flex items-center gap-2 bg-slate-50 p-1 rounded-full border border-slate-200 shadow-inner w-full sm:w-auto justify-between sm:justify-start">
+          
+          <div class="flex items-center bg-white rounded-full p-0.5 shadow-sm border border-slate-100">
+            <button @click="alterarDias(-1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-50 rounded-full transition-all text-slate-400 hover:text-brand-indigo"><i data-lucide="minus" class="w-4 h-4"></i></button>
+            <div class="px-2 text-center min-w-[3rem]">
+              <span class="block text-sm font-black text-brand-indigo">{{ diasHorizonte }}d</span>
+            </div>
+            <button @click="alterarDias(1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-50 rounded-full transition-all text-slate-400 hover:text-brand-indigo"><i data-lucide="plus" class="w-4 h-4"></i></button>
+          </div>
+          
+          <button @click="recalcularIA" :disabled="loadingIA" class="btn-action bg-white border border-slate-200 text-slate-600 hover:text-brand-indigo hover:border-brand-indigo hover:bg-indigo-50 px-5 h-9 rounded-full whitespace-nowrap shadow-sm mr-1">
+            <span v-if="!loadingIA" class="font-bold text-[10px] uppercase tracking-widest">Recalcular Range</span>
+            <div v-else class="w-4 h-4 animate-spin border-2 border-brand-indigo/30 border-t-brand-indigo rounded-full"></div>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
+      <div v-for="n in 8" :key="n" class="premium-card p-5 relative overflow-hidden flex flex-col justify-between h-[250px] bg-white border border-slate-100 shadow-sm animate-pulse">
+        <div class="flex justify-between items-start mb-4 pr-10">
+          <div class="w-2/3 space-y-3 mt-1">
+            <div class="h-6 bg-slate-200 rounded-md w-20"></div> 
+            <div class="h-2 bg-slate-200 rounded w-32"></div> 
+            <div class="h-4 bg-slate-100 rounded w-24"></div> 
+          </div>
+          <div class="text-right space-y-2 flex flex-col items-end mt-1">
+            <div class="h-8 bg-slate-200 rounded-md w-12"></div> 
+            <div class="h-2 bg-slate-100 rounded w-10"></div> 
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2 mb-5 p-2.5 bg-slate-50 rounded-xl border border-slate-100 h-[60px]">
+          <div class="bg-slate-200/50 rounded h-full w-full"></div>
+          <div class="bg-slate-200/50 rounded h-full w-full"></div>
+          <div class="bg-slate-200/50 rounded h-full w-full"></div>
+        </div>
+        <div class="space-y-3 mt-auto">
+          <div class="flex justify-between px-1">
+             <div class="h-2 bg-slate-200 rounded w-8"></div>
+             <div class="h-2 bg-slate-200 rounded w-8"></div>
+          </div>
+          <div class="h-1.5 w-full bg-slate-200 rounded-full"></div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="ativos.length === 0" class="py-20 text-center bg-white rounded-3xl border border-slate-200 shadow-sm mt-6">
+      <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+        <i data-lucide="search" class="w-8 h-8 text-slate-300"></i>
+      </div>
+      <h4 class="text-sm font-black text-slate-400 uppercase tracking-widest">Nenhum ativo sendo monitorado</h4>
+    </div>
+
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
+      <div v-for="ativo in ativos" :key="ativo.linhaReal" 
+           @click="selecionarAtivo(ativo)"
+           class="premium-card p-5 group cursor-pointer hover:border-brand-indigo hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between h-full bg-white">
+        
+        <button @click.stop="confirmarExclusao(ativo)" 
+                class="absolute top-4 right-4 p-2 bg-rose-50 text-rose-400 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white z-20"
+                title="Parar de monitorar">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+
+        <div class="flex justify-between items-start mb-4 pr-10">
+          <div class="w-full">
+            <span class="text-2xl font-black text-slate-900 tracking-tighter block leading-none">{{ ativo.ticker }}</span>
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block truncate mt-1.5" :title="ativo.name">{{ ativo.name || '---' }}</span>
+            <span class="text-[8px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded font-bold mt-1 inline-block truncate max-w-full border border-slate-200">{{ ativo.sector || 'N/A' }}</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-1 mb-5 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 shadow-inner">
+          <div class="text-center cursor-help" title="Spot: Preço atual de mercado do ativo.">
+            <span class="block text-[8px] text-slate-400 font-bold uppercase tracking-wider mb-0.5 underline decoration-dotted underline-offset-2">Spot</span>
+            <span class="text-[11px] font-black text-slate-700 font-mono-data">{{ Tradutor.formatarMoeda(ativo.close) }}</span>
+          </div>
+          <div class="text-center border-l border-r border-slate-200/60 px-1 cursor-help" title="Variação: Oscilação percentual do preço no dia atual.">
+            <span class="block text-[8px] text-slate-400 font-bold uppercase tracking-wider mb-0.5 underline decoration-dotted underline-offset-2">Variação</span>
+            <span class="text-[11px] font-black font-mono-data" :class="ativo.variation >= 0 ? 'text-brand-emerald' : 'text-brand-rose'">
+                {{ ativo.variation > 0 ? '+' : '' }}{{ ativo.variation }}%
+            </span>
+          </div>
+          <div class="text-center cursor-help" title="IV Rank: Posição da volatilidade atual em relação ao último ano. Acima de 50% indica opções caras (oportunidade de venda).">
+            <span class="block text-[8px] text-slate-400 font-bold uppercase tracking-wider mb-0.5 underline decoration-dotted underline-offset-2">IV Rank</span>
+            <span class="text-[11px] font-black text-brand-indigo font-mono-data">{{ ativo.iv_current }}%</span>
+          </div>
+        </div>
+
+        <div v-if="ativo.score > 0" class="space-y-2 mt-auto">
+          <div class="flex items-end justify-between mb-1">
+            <div class="flex justify-between text-[9px] font-black uppercase text-slate-500 tracking-widest gap-3">
+              <span class="text-brand-indigo cursor-help underline decoration-dotted underline-offset-2" title="Probabilidade matemática do ativo terminar o horizonte de tempo em ALTA.">Prob. Alta: {{ (ativo.prob_alta * 100).toFixed(0) }}%</span>
+              <span class="text-slate-400 cursor-help underline decoration-dotted underline-offset-2" title="Probabilidade matemática do ativo terminar o horizonte de tempo em BAIXA.">Prob. Baixa: {{ (ativo.prob_baixa * 100).toFixed(0) }}%</span>
+            </div>
+            <div class="text-right cursor-help" title="Nota Geral da IA (0 a 10): Indica o nível de concordância entre os dados estatísticos, técnicos e os fundamentos. Quanto maior a nota, mais os três pilares apontam para a mesma direção.">
+              <span class="text-xl font-black font-mono-data leading-none" :class="getScoreColor(ativo.score)">{{ ativo.score }}</span>
+            </div>
+          </div>
+          <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+            <div class="h-full bg-brand-indigo transition-all duration-500" :style="{ width: (ativo.prob_alta * 100) + '%' }"></div>
+            <div class="h-full bg-slate-200 transition-all duration-500" :style="{ width: (ativo.prob_baixa * 100) + '%' }"></div>
+          </div>
+        </div>
+
+        <div v-else class="mt-auto py-2 bg-amber-50 rounded-lg border border-amber-100 text-center">
+           <span class="text-[9px] font-black text-amber-600 uppercase tracking-widest">Aguardando Recálculo</span>
+        </div>
+        
+      </div>
+    </div>
+
+    <transition name="fade">
+      <div v-if="modal.isOpen" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+        <div class="bg-white rounded-[28px] shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden transform transition-all text-center">
+          <div class="p-8">
+            <div class="w-16 h-16 bg-rose-50 text-brand-rose rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-rose-50/50">
+              <i data-lucide="alert-circle" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-xl font-black text-slate-900 mb-2 tracking-tight">Remover Ativo?</h3>
+            <p class="text-sm text-slate-500 font-medium leading-relaxed mb-4">
+              Deseja parar de monitorar o ativo <strong class="text-brand-indigo font-black">{{ modal.ticker }}</strong>?
+            </p>
+            <span class="text-brand-rose font-bold uppercase text-[10px] tracking-[0.2em] block bg-rose-50 py-2 rounded-lg border border-rose-100/50">Ação irreversível na base</span>
+          </div>
+          <div class="flex border-t border-slate-100 p-4 gap-3 bg-slate-50/50">
+            <button @click="fecharModal" class="btn-action flex-1 bg-white border border-slate-200 text-slate-500 hover:bg-slate-100">Cancelar</button>
+            <button @click="executarExclusao" class="btn-action flex-1 bg-red-600 text-white shadow-md hover:bg-red-700">Sim, Remover</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <gestao-ativos-sidebar 
+      :is-open="sidebar.isOpen" 
+      :ativo="sidebar.ativo" 
+      :dias="diasHorizonte"
+      @close="sidebar.isOpen = false">
+    </gestao-ativos-sidebar>
+
+  </div>
+</template>
+
+<script>
+const GestaoAtivos = {
+  template: '#gestao-ativos-template',
+  data() {
+    return {
+      Tradutor: Tradutor,
+      ativos: [], 
+      novoTicker: '',
+      isSaving: false,
+      loading: false,
+      modal: { isOpen: false, ticker: '', linhaReal: null },
+      diasHorizonte: 45,
+      loadingIA: false,
+      sidebar: { 
+        isOpen: false, 
+        ativo: {} 
+      }
+    }
+  },
+  mounted() {
+    this.carregarAtivos();
+    this.$nextTick(() => {
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+  },
+  watch: {
+    ativos() {
+      this.$nextTick(() => {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      });
+    }
+  },
+  methods: {
+    carregarAtivos() {
+      this.loading = true;
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res && res.success) {
+            
+            let listaAtivos = [];
+            if (res.raw['Dados_Ativos'] && res.raw['Dados_Ativos'].length > 1) {
+              listaAtivos = res.raw['Dados_Ativos'].slice(1).map((r, i) => ({
+                ticker: r[0],
+                timestamp: r[1],
+                name: r[2],
+                sector: r[3],
+                close: Tradutor.limparNumero(r[7]), 
+                iv_current: Tradutor.limparNumero(r[10]),
+                variation: Tradutor.limparNumero(r[11]),
+                linhaReal: i + 2
+              }));
+            }
+
+            let heatmapLimpo = [];
+            if (res.raw['Analise_Preditiva_Heatmap'] && res.raw['Analise_Preditiva_Heatmap'].length > 1) {
+              heatmapLimpo = res.raw['Analise_Preditiva_Heatmap'].slice(1).map(r => ({
+                ticker_ref: r[0],
+                prob_alta: Tradutor.limparNumero(r[2]),
+                prob_baixa: Tradutor.limparNumero(r[3]),
+                spot_min: Tradutor.limparNumero(r[5]),
+                spot_max: Tradutor.limparNumero(r[6]),
+                score: Tradutor.limparNumero(r[7]),
+                fator_dominante: r[8],
+                status: r[9]
+              }));
+            }
+
+            let fundamentosLimpos = [];
+            if (res.raw['Analise_Fundamentalista_Ativos'] && res.raw['Analise_Fundamentalista_Ativos'].length > 1) {
+              fundamentosLimpos = res.raw['Analise_Fundamentalista_Ativos'].slice(1).map(r => ({
+                ticker_ref: r[0],
+                graham: Tradutor.limparNumero(r[4]), 
+                margem_seguranca: Tradutor.limparNumero(r[5]) 
+              }));
+            }
+
+            listaAtivos = listaAtivos.map(ativo => {
+              const predicao = heatmapLimpo.find(h => h.ticker_ref === ativo.ticker) || {};
+              const fundamentos = fundamentosLimpos.find(f => f.ticker_ref === ativo.ticker) || {};
+              
+              const ativoMerge = { ...ativo, ...predicao, ...fundamentos };
+
+              if (!ativoMerge.score) {
+                return { 
+                  ...ativoMerge, prob_alta: 0, prob_baixa: 0, spot_min: ativo.close, 
+                  spot_max: ativo.close, score: 0, fator_dominante: 'Aguardando Cálculo', status: 'N/A',
+                  graham: 0, margem_seguranca: 0
+                };
+              }
+              return ativoMerge;
+            });
+
+            this.ativos = listaAtivos; 
+            
+            if (res.raw['Config_Global'] && res.raw['Config_Global'].length > 1) {
+              const cfgDias = res.raw['Config_Global'].slice(1).find(r => r[0] === 'Regra_Dias_Horizonte_Preditivo');
+              if (cfgDias) {
+                this.diasHorizonte = parseInt(cfgDias[1], 10) || 45;
+              }
+            }
+          }
+          this.loading = false;
+        })
+        .withFailureHandler(err => {
+          console.error("Falha ao carregar ativos:", err);
+          this.loading = false;
+        })
+        .getInitialData(); 
+    },
+    
+    alterarDias(delta) {
+      let novo = this.diasHorizonte + delta;
+      if (novo >= 1 && novo <= 45) {
+        this.diasHorizonte = novo;
+      }
+    },
+
+    selecionarAtivo(ativo) {
+      this.sidebar.ativo = ativo;
+      this.sidebar.isOpen = true;
+    },
+
+    getScoreColor(score) {
+       if (score >= 7) return 'text-brand-emerald';
+       if (score >= 5) return 'text-amber-500';
+       return 'text-brand-rose';
+    },
+
+    recalcularIA() {
+      this.loadingIA = true;
+      google.script.run
+        .withSuccessHandler((res) => {
+           if (res.success) {
+             this.carregarAtivos(); 
+             this.$emit('refresh'); 
+           } else {
+             alert("Erro na simulação: " + res.error);
+           }
+           this.loadingIA = false;
+        })
+        .withFailureHandler((err) => {
+           console.error("Erro fatal na IA:", err);
+           this.loadingIA = false;
+        })
+        .apiSimularHorizontePreditivo(this.diasHorizonte); 
+    },
+
+    adicionarAtivo() {
+      if (!this.novoTicker) return;
+      this.isSaving = true;
+      const tickerLimpo = this.novoTicker.toUpperCase().trim();
+      const dataAgora = new Date().toLocaleString('pt-BR');
+      const novaLinha = [[tickerLimpo, dataAgora]];
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          this.novoTicker = '';
+          this.isSaving = false;
+          if (res.success) {
+            this.carregarAtivos();
+            this.$emit('refresh');
+          } else alert("Erro ao salvar: " + res.error);
+        })
+        .withFailureHandler(err => {
+          this.isSaving = false;
+          alert("Falha de comunicação: " + err);
+        })
+        .apiAdicionarLinhas('Dados_Ativos', novaLinha);
+    },
+
+    confirmarExclusao(ativo) {
+      this.modal = { isOpen: true, ticker: ativo.ticker, linhaReal: ativo.linhaReal };
+    },
+
+    fecharModal() {
+      this.modal = { isOpen: false, ticker: '', linhaReal: null };
+    },
+
+    executarExclusao() {
+      const { linhaReal, ticker } = this.modal;
+      this.fecharModal();
+      this.loading = true;
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success) {
+            this.carregarAtivos();
+            this.$emit('refresh');
+          } else {
+            alert("Erro ao excluir: " + res.error);
+            this.loading = false;
+          }
+        })
+        .withFailureHandler((err) => {
+          alert("Falha de comunicação: " + err);
+          this.loading = false;
+        })
+        .apiExcluirLinhaSegura('Dados_Ativos', linhaReal, ticker);
+    }
+  }
+};
+</script>

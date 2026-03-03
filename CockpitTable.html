@@ -1,0 +1,212 @@
+<template id="cockpit-table-template">
+  <div class="bg-[var(--app-surface)] border border-[var(--app-border)] rounded-[28px] overflow-hidden shadow-sm flex flex-col transition-all">
+    
+    <div v-if="isLoading" class="p-6 space-y-4 animate-pulse">
+      <div v-for="n in 6" :key="'skel-row-'+n" class="flex items-center space-x-4">
+        <div class="h-4 bg-slate-100 rounded w-1/4"></div>
+        <div class="h-4 bg-slate-50 rounded w-1/2"></div>
+        <div class="h-4 bg-slate-100 rounded w-1/4"></div>
+      </div>
+    </div>
+
+    <div v-else class="flex flex-col">
+      
+      <div v-if="!isMobile" class="overflow-auto custom-scrollbar" style="max-height: 600px;">
+        <table class="w-full text-left border-separate border-spacing-0">
+          <thead class="sticky top-0 z-30">
+            <tr class="bg-white/80 backdrop-blur-md">
+              <th v-for="col in columns" :key="col.key" 
+                  class="px-4 py-4 text-[10px] font-bold text-[var(--m3-on-surface-variant)] uppercase tracking-[0.2em] border-b border-[var(--app-border)] whitespace-nowrap">
+                {{ col.label }}
+              </th>
+            </tr>
+          </thead>
+
+          <tbody v-for="(rows, groupName) in groupedData" :key="groupName">
+            <tr @click="toggleGroup(groupName)" 
+                class="bg-[var(--m3-primary)]/5 cursor-pointer hover:bg-[var(--m3-primary)]/10 transition-colors">
+              <td v-for="(col, index) in columns" :key="'sum-'+index" 
+                  class="px-4 py-4 text-[13px] font-black border-b border-[var(--app-border)] whitespace-nowrap">
+                <div v-if="index === 0" class="flex items-center text-[var(--m3-primary)] uppercase tracking-widest">
+                  <span class="mr-2 transform transition-transform" :class="{'rotate-90': isExpanded(groupName)}">▶</span>
+                  <span class="opacity-70">📂</span> {{ groupName }}
+                </div>
+                <div v-else-if="['currency', 'number', 'percentage'].includes(col.type)" 
+                    class="text-[var(--m3-primary)] font-mono text-[14px] font-bold">
+                  {{ formatCell(getGroupSum(rows, col.key), col.type) }}
+                </div>
+              </td>
+            </tr>
+
+            <tr v-if="isExpanded(groupName)" v-for="(row, idx) in rows" :key="idx" class="hover:bg-slate-50 transition-colors group">
+              <td v-for="col in columns" :key="col.key" 
+                  class="px-4 py-3 text-[12px] text-slate-700 border-b border-[var(--app-border)]/50 whitespace-nowrap">
+                <span :class="getCellClass(row[col.key], col.type, col.key)">
+                  {{ formatCell(row[col.key], col.type) }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="flex flex-col divide-y divide-slate-100 max-h-[70vh] overflow-y-auto custom-scrollbar-mobile">
+        <div v-for="(rows, groupName) in groupedData" :key="'mob-grp-'+groupName" class="flex flex-col">
+          
+          <div @click="toggleGroup(groupName)" class="p-4 bg-slate-50 flex justify-between items-center sticky top-0 z-10 border-b border-slate-200">
+            <div class="flex items-center">
+               <span class="mr-3 text-brand-indigo transition-transform" :class="{'rotate-90': isExpanded(groupName)}">▶</span>
+               <div class="flex flex-col">
+                  <span class="text-[11px] font-black text-slate-800 uppercase tracking-tight">{{ groupName }}</span>
+                  <span class="text-[9px] text-slate-500 font-bold uppercase">{{ rows.length }} POSIÇÕES</span>
+               </div>
+            </div>
+            <div class="text-right">
+               <p class="text-[10px] font-black text-brand-indigo font-mono">
+                 {{ formatCell(getGroupSum(rows, 'P/L TOTAL'), 'currency') }}
+               </p>
+            </div>
+          </div>
+
+          <div v-if="isExpanded(groupName)" class="bg-white">
+            <div v-for="(row, idx) in rows" :key="'mob-row-'+idx" 
+                 class="p-4 border-b border-slate-50 last:border-0 flex justify-between items-center active:bg-slate-50 transition-colors">
+              <div class="flex flex-col space-y-1">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs font-black text-slate-900">{{ row['TICKER'] }}</span>
+                  <span :class="getCellClass(row['MONEYNESS_CODE'], 'text', 'MONEYNESS_CODE')" class="text-[8px]">
+                    {{ row['MONEYNESS_CODE'] }}
+                  </span>
+                </div>
+                <div class="flex items-center space-x-2 text-[10px]">
+                  <span class="text-slate-500 font-bold uppercase">{{ row['CÓDIGO OPÇÃO'] }}</span>
+                  <span class="text-slate-400 font-mono">{{ formatCell(row['VENCIMENTO'], 'date') }}</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <p :class="getCellClass(row['P/L TOTAL %'], 'percentage', 'P/L TOTAL %')" class="text-[11px] font-black font-mono">
+                  {{ formatCell(row['P/L TOTAL %'], 'percentage') }}
+                </p>
+                <p class="text-[9px] text-slate-400 font-bold font-mono">
+                  {{ formatCell(row['P/L TOTAL'], 'currency') }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <div class="bg-white px-6 py-4 border-t border-[var(--app-border)] flex justify-between items-center text-[10px] font-bold text-[var(--m3-on-surface-variant)] uppercase tracking-widest">
+      <span class="flex items-center">
+        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></span>
+        Filtro: ATIVO
+      </span>
+      <span>{{ totalFilteredItems }} Itens</span>
+    </div>
+  </div>
+</template>
+
+<script>
+const CockpitTable = {
+  props: {
+    columns: Array,
+    data: Array,
+    isMobile: Boolean, // 📱 Injetado pelo AppCore
+    isLoading: Boolean // 🚀 ROTA 1
+  },
+  template: '#cockpit-table-template',
+  
+  data() {
+    return {
+      expandedGroups: {}
+    };
+  },
+
+  computed: {
+    filteredAndSortedData() {
+      if (!this.data?.length) return [];
+      const headers = Object.keys(this.data[0]);
+      const statusKey = headers.find(h => h.toUpperCase().includes('STATUS')) || 'STATUS';
+      let filtered = this.data.filter(item => String(item[statusKey]).trim().toUpperCase() === 'ATIVO');
+      return filtered.sort((a, b) => this.parseDate(a.VENCIMENTO) - this.parseDate(b.VENCIMENTO));
+    },
+
+    groupedData() {
+      return this.filteredAndSortedData.reduce((acc, row) => {
+        const group = row['ID ESTRATÉGIA'] || row['ID ESTRATEGIA'] || 'SEM ESTRATÉGIA';
+        if (!acc[group]) acc[group] = [];
+        acc[group].push(row);
+        return acc;
+      }, {});
+    },
+
+    totalFilteredItems() {
+      return this.filteredAndSortedData.length;
+    }
+  },
+
+  methods: {
+    toggleGroup(name) {
+      this.expandedGroups[name] = !this.isExpanded(name);
+    },
+    isExpanded(name) {
+      return this.expandedGroups[name] !== false;
+    },
+
+    getGroupSum(rows, key) {
+      return rows.reduce((sum, row) => {
+        let val = row[key];
+        if (!val && val !== 0) return sum;
+        if (typeof val === 'string') {
+          val = parseFloat(val.replace(/[R$.%]/g, '').replace(',', '.').trim());
+        }
+        return sum + (isNaN(val) ? 0 : val);
+      }, 0);
+    },
+
+    parseDate(dateStr) {
+      if (!dateStr || typeof dateStr !== 'string') return new Date(2099, 11, 31);
+      const parts = dateStr.split(' ')[0].split('/');
+      if (parts.length < 3) return new Date(2099, 11, 31);
+      return new Date(parts[2], parts[1] - 1, parts[0]);
+    },
+
+    formatCell(value, type) {
+      if (value === undefined || value === null || value === '') return '--';
+      if (type === 'date') return String(value).split(' ')[0];
+      if (type === 'currency') return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+      if (type === 'number') return new Intl.NumberFormat('pt-BR').format(value);
+      if (type === 'percentage') return (Number(value)).toFixed(2).replace('.', ',') + '%';
+      return value;
+    },
+
+    getCellClass(value, type, colKey) {
+      if (!value && value !== 0) return 'text-slate-500';
+      const valStr = String(value).trim().toUpperCase();
+      const colName = String(colKey).toUpperCase();
+
+      if (colName.includes('MONEYNESS')) {
+        if (valStr.includes('OTM')) return 'text-emerald-700 font-black bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100';
+        if (valStr.includes('ITM')) return 'text-red-700 font-black bg-red-50 px-2 py-0.5 rounded border border-red-100 animate-pulse';
+        if (valStr.includes('ATM')) return 'text-amber-700 font-black bg-amber-50 px-2 py-0.5 rounded border border-amber-100';
+      }
+
+      if (colName.includes('TIPO')) {
+        if (valStr === 'CALL') return 'text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded';
+        if (valStr === 'PUT') return 'text-fuchsia-700 font-bold bg-fuchsia-50 px-1.5 py-0.5 rounded';
+      }
+      
+      if (type === 'currency' || type === 'percentage') {
+        const num = typeof value === 'string' ? parseFloat(value.replace(/[R$.%]/g, '').replace(',', '.')) : value;
+        if (num > 0) return 'text-emerald-700 font-mono font-bold';
+        if (num < 0) return 'text-red-700 font-mono font-bold';
+      }
+
+      return 'text-slate-700 font-semibold';
+    }
+  }
+};
+</script>

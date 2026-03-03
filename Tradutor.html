@@ -1,0 +1,95 @@
+<script>
+/**
+ * TRADUTOR V3.0 - "The Gates Standard"
+ */
+const Tradutor = {
+  processar(matriz, isLiteral = false) {
+      if (!matriz || matriz.length < 1) return [];
+      const cabecalhos = matriz[0].map(h => h.toString().trim().toUpperCase());
+      const corpoDados = matriz.slice(1);
+
+      const dadosValidos = [];
+      // LOOP COM TRAVA: Para no primeiro momento que a linha for nula ou um "Subtotal"
+      for (let i = 0; i < corpoDados.length; i++) {
+        const row = corpoDados[i];
+        const primeiraCelula = String(row[0] || '').trim().toUpperCase();
+        
+        // Se a célula estiver vazia OU for um cabeçalho de subtotal da sua planilha, PARA TUDO.
+        if (primeiraCelula === "" || primeiraCelula.includes("SUBTOTAL")) break;
+        
+        const objetoRow = cabecalhos.reduce((acc, header, j) => {
+          const valorBruto = row[j];
+          if (!isLiteral && this._isFinanceiro(header)) {
+            acc[header] = this.limparNumero(valorBruto);
+          } else {
+            acc[header] = valorBruto;
+          }
+          return acc;
+        }, {});
+        
+        dadosValidos.push(objetoRow);
+      }
+
+      console.log("🚀 [Corte de Segurança] Linhas processadas:", dadosValidos.length);
+      return dadosValidos;
+    },
+
+  limparNumero(val) {
+    if (typeof val === 'number') return val;
+    if (val === undefined || val === null || val === "") return 0;
+    try {
+      let strVal = val.toString().trim();
+      const isNegative = strVal.includes('-');
+      let clean = strVal
+        .replace(/[R$\s%]/g, '') // Limpa R$, espaços e % de uma vez, preservando o "-"
+        .replace(/\./g, '')   
+        .replace(',', '.');   
+      const num = Number(clean);
+      return isNaN(num) ? val : num;
+    } catch (e) {
+      console.warn("⚠️ Falha ao limpar campo:", val);
+      return val;
+    }
+  },
+
+  /**
+   * ESTA FUNÇÃO VEIO DA API.GS - Arrumação de Gaveta
+   */
+  formatarMoeda(valor) {
+    if (!valor || valor === "") return "R$ 0,00";
+    let numero = parseFloat(valor.toString().replace(',', '.'));
+    return numero.toLocaleString('pt-BR', { 
+      style: 'currency', 
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2 
+    });
+  },
+
+  _isFinanceiro(header) {
+    const nomes = [
+      'P/L', 'PREMIO', 'PRÊMIO', 'STRIKE', 'NOCIONAL', 
+      'DELTA', 'THETA', 'GAMMA', 'VEGA', 'RHO', 'POE',
+      'IV', 'GANHO', 'LUCRO', 'PERDA', 'VALOR', 'SPOT', 'QTD',
+      'VARIATION', 'PRICE', 'VOLATILITY', 'DTE', 'BREAK-EVEN'
+    ];
+    const upperHeader = String(header).toUpperCase();
+    return nomes.some(n => upperHeader.includes(n));
+  },
+
+  homologar() {
+    console.log("%c🧪 Iniciando Homologação do Tradutor...", "color: #818cf8; font-weight: bold;");
+    const amostraBruta = [
+      ["ID", "TICKER", "STATUS", "P/L ATUAL", "DELTA"],
+      ["1", "PETR4", "ATIVO", "R$ 1.250,50", "-15,5%"],
+      ["2", "VALE3", "ENCERRADO", "-R$ 500,00", "10,0%"]
+    ];
+    const resultado = this.processar(amostraBruta);
+    console.table(resultado);
+    const erro = resultado[0]["P/L ATUAL"] !== 1250.5 || resultado[1]["DELTA"] !== 10.0;
+    if (erro) console.error("❌ Falha no teste de saneamento.");
+    else console.log("%c✅ Tradutor homologado!", "color: #10b981;");
+    return resultado;
+  }
+};
+</script>

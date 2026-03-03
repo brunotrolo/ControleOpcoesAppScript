@@ -1,0 +1,491 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
+<script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+
+<template id="page-bancodedados">
+  <div class="max-w-[95%] mx-auto flex flex-col h-full bg-app-bg overflow-hidden font-sans space-y-8 mt-6">
+
+    <div class="premium-card px-8 py-6 flex flex-col lg:flex-row justify-between items-center gap-6 z-30 relative shrink-0">
+      
+      <div class="flex items-center gap-5">
+        <div class="p-3 bg-indigo-50 text-brand-indigo rounded-2xl shadow-sm border border-indigo-100/50">
+          <i data-lucide="database" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h2 class="text-2xl font-black text-slate-900 tracking-tight">Universal Data Bridge</h2>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="flex h-2 w-2 rounded-full bg-brand-emerald animate-pulse shadow-sm shadow-emerald-200"></span>
+            <p class="text-slate-400 text-[10px] uppercase tracking-[0.25em] font-bold">Base de Dados - Controle de Opções</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 bg-slate-50/80 p-1.5 rounded-2xl border border-slate-100 shadow-inner">
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Dataset:</label>
+        
+        <select v-model="abaAtiva" @change="switchAba"
+          class="bg-white text-slate-700 text-xs font-bold border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-brand-indigo/30 transition-all min-w-[220px] cursor-pointer shadow-sm">
+          <option v-for="nome in listaAbas" :key="nome" :value="nome">📊 {{ nome }}</option>
+        </select>
+        
+        <div class="w-px h-6 bg-slate-200 mx-1"></div>
+
+        <div class="flex items-center gap-2">
+          <button @click="sincronizarBanco" 
+            class="btn-action bg-white border border-slate-200 text-brand-indigo hover:bg-indigo-50 shadow-sm px-3 py-2.5 rounded-xl" title="Sincronizar">
+            <span :class="{'animate-spin': syncBusy}" class="flex items-center justify-center origin-center transition-transform duration-700">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            </span>
+          </button>
+
+          <button @click="abrirModalAdd" 
+            class="btn-action btn-action-primary px-5 py-2.5 rounded-xl shadow-md">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span class="ml-1">Novo</span>
+          </button>
+
+          <button @click="excluirSelecionados" v-if="temSelecao"
+            class="btn-action bg-rose-50 text-brand-rose border border-rose-200 hover:bg-brand-rose hover:text-white px-5 py-2.5 rounded-xl shadow-sm transition-colors animate-fade-in">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+            <span class="ml-1">Excluir ({{ qtdSelecionada }})</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex-1 relative p-6 overflow-hidden">
+
+      <transition name="fade">
+        <div v-if="syncBusy" class="absolute inset-0 bg-white/70 backdrop-blur-md z-40 flex flex-col items-center justify-center m-6 rounded-[1.5rem]">
+          <div class="relative w-16 h-16">
+            <div class="absolute inset-0 border-4 border-indigo-50 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-brand-indigo border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <p class="mt-4 text-[10px] font-black text-brand-indigo uppercase tracking-[0.3em]">Mapeando Matriz...</p>
+        </div>
+      </transition>
+      
+      <transition name="fade">
+        <div v-if="statsSelecao.conta > 1" 
+             class="absolute bottom-10 right-10 z-50 bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center gap-6 animate-in slide-in-from-bottom-4">
+          <div class="flex flex-col">
+            <span class="text-[8px] font-black text-brand-indigo uppercase tracking-widest">Soma Seleção</span>
+            <span class="text-sm font-mono-data font-bold text-slate-800">{{ formatarNumero(statsSelecao.soma) }}</span>
+          </div>
+          <div class="w-px h-8 bg-slate-200"></div>
+          <div class="flex flex-col">
+            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Média</span>
+            <span class="text-sm font-mono-data font-bold text-slate-600">{{ formatarNumero(statsSelecao.media) }}</span>
+          </div>
+          <div class="flex items-center justify-center bg-indigo-50 border border-indigo-100 text-brand-indigo text-[10px] font-black px-3 py-1.5 rounded-lg tracking-widest">
+            {{ statsSelecao.conta }} ITENS
+          </div>
+        </div>
+      </transition>
+
+
+      <div id="hot-engine" class="w-full h-full bg-white rounded-[1.5rem] border border-slate-200 shadow-2xl overflow-hidden"></div>
+    </div>
+
+
+
+    <transition name="fade">
+      <div v-if="modalExcluir.visivel" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+        <div class="bg-white rounded-[28px] shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden transform transition-all">
+          <div class="p-8 text-center">
+            <div class="w-16 h-16 bg-rose-50 text-brand-rose rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-rose-50/50">
+              <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-xl font-black text-slate-900 mb-2 tracking-tight">Confirmar Exclusão?</h3>
+            <p class="text-sm text-slate-500 font-medium leading-relaxed">
+              {{ modalExcluir.mensagem }}<br>
+              <span class="text-brand-rose font-bold uppercase text-[10px] tracking-[0.2em] mt-3 block bg-rose-50 py-1.5 rounded-lg">Ação irreversível</span>
+            </p>
+          </div>
+          <div class="flex border-t border-slate-100 p-4 gap-3 bg-slate-50">
+            <button @click="fecharModalExcluir" class="btn-action flex-1 bg-white border border-slate-200 text-slate-500 hover:bg-slate-100">Cancelar</button>
+            <button @click="confirmarExclusao" class="btn-action flex-1 bg-brand-rose text-white hover:bg-rose-600 shadow-md">Sim, Excluir</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div v-if="modalAdd.visivel" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+        <div class="bg-white rounded-[28px] shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden transform transition-all">
+          
+          <div class="bg-brand-indigo p-6 flex justify-between items-center text-white">
+            <div class="flex items-center gap-3">
+              <i data-lucide="plus-circle" class="w-6 h-6 opacity-80"></i>
+              <h3 class="text-lg font-black tracking-widest uppercase">Novo: {{ abaAtiva }}</h3>
+            </div>
+            <button @click="fecharModalAdd" class="hover:rotate-90 transition-transform opacity-70 hover:opacity-100"><i data-lucide="x" class="w-6 h-6"></i></button>
+          </div>
+
+          <div class="p-8 max-h-[60vh] overflow-y-auto grid grid-cols-2 gap-5 bg-slate-50/50">
+            <div v-for="(valor, coluna) in modalAdd.form" :key="coluna" class="flex flex-col gap-1.5">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{{ coluna }}</label>
+              <input v-model="modalAdd.form[coluna]" type="text"
+                class="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono-data font-bold text-slate-800 outline-none focus:ring-2 focus:ring-brand-indigo/30 shadow-sm transition-all">
+            </div>
+          </div>
+
+          <div class="p-5 bg-white border-t border-slate-100 flex gap-3">
+            <button @click="fecharModalAdd" class="btn-action flex-1 bg-white border border-slate-200 text-slate-500 hover:bg-slate-50">Cancelar</button>
+            <button @click="confirmarAdicao" class="btn-action btn-action-primary flex-[2]">
+              Salvar no Banco
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+    
+  </div>
+</template>
+
+<script>
+const BancoDeDadosView = {
+  template: '#page-bancodedados',
+  data() {
+    return {
+      abaAtiva: 'Cockpit',
+      listaAbas: [],
+      selecaoAtual: [], 
+      dbRaw: {},
+      hot: null,
+      syncBusy: false,
+      statsSelecao: { soma: 0, conta: 0, media: 0 }, // NOVO
+      stats: { totalOps: 0, qtdTotal: 0, plTotal: 0, nocionalTotal: 0 },
+      modalExcluir: {
+        visivel: false,
+        mensagem: '',
+        callback: null
+      },
+      modalAdd: {
+        visivel: false, // Corrigido aqui
+        form: {}
+      }
+    };
+  },
+  // ... (computed, mounted permanecem iguais)
+  computed: {
+    temSelecao() {
+      return this.selecaoAtual && this.selecaoAtual.length > 0 && this.selecaoAtual[0] !== null;
+    },
+    qtdSelecionada() {
+      if (!this.temSelecao) return 0;
+      let total = 0;
+      this.selecaoAtual.forEach(sel => {
+        if (sel) {
+          const [r1, c1, r2, c2] = sel;
+          total += Math.abs(r2 - r1) + 1;
+        }
+      });
+      return total;
+    }
+  },
+  mounted() {
+    this.sincronizarBanco();
+  },
+  methods: {
+    sincronizarBanco() {
+      this.syncBusy = true;
+      if (typeof google !== 'undefined') {
+        google.script.run
+          .withSuccessHandler((res) => {
+            try {
+              if (res && res.success) {
+                this.dbRaw = res.raw;
+                this.listaAbas = Object.keys(res.raw);
+                this.switchAba();
+              }
+            } finally {
+              // Garante que o spinner desliga MESMO se der erro no try
+              this.syncBusy = false;
+              this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
+            }
+          })
+          .withFailureHandler((err) => {
+            this.syncBusy = false; // Desliga em caso de falha de conexão
+            console.error("Falha na API:", err);
+          })
+          .getInitialData();
+      } else {
+        // Escudo para modo de desenvolvimento local (fora do Sheets)
+        console.warn("API do Google não encontrada. Modo Local.");
+        setTimeout(() => { this.syncBusy = false; }, 1000);
+      }
+    },
+
+    switchAba() {
+      // CORREÇÃO DO BUG: Zera a seleção sempre que a aba mudar
+      this.selecaoAtual = [];
+
+      let matriz = this.dbRaw[this.abaAtiva];
+      if (!matriz) return;
+      
+      // Ajuste de Offset para Cockpit
+      if (this.abaAtiva === 'Cockpit') {
+        matriz = matriz.slice(9); 
+      }
+      
+      const dadosSaneados = Tradutor.processar(matriz);
+      this.renderGrade(dadosSaneados);
+    },
+
+    renderGrade(dados) {
+      this.$nextTick(() => {
+        const container = document.getElementById('hot-engine');
+        if (!container || !dados || dados.length === 0) return;
+        if (this.hot) { this.hot.destroy(); this.hot = null; }
+
+        try {
+          const nomesColunas = Object.keys(dados[0]).filter(key => key.trim() !== "");
+          const configColunas = this.definirConfiguracaoColunas(nomesColunas);
+
+          this.hot = new Handsontable(container, {
+            data: dados,
+            colHeaders: nomesColunas,
+            columns: configColunas,
+            rowHeaders: true,
+            
+            // --- TRAVAS DE PERFORMANCE ---
+            width: '100%',
+            height: '100%', // O container PAI precisa de altura fixa (px ou h-screen)
+            stretchH: 'all',
+            renderAllRows: false, // Ativa Virtualização (Renderiza só o que aparece)
+            viewportRowRenderingOffset: 10, // Buffer de linhas para o scroll não engasgar
+            viewportColumnRenderingOffset: 5,
+            
+            // --- SEGURANÇA CONTRA LINHAS FANTASMAS ---
+            minSpareRows: 0,
+            fillHandle: false, // Desativa o arraste de célula que causa reflows pesados
+            
+            manualColumnResize: true,
+            columnSorting: true,
+            filters: true,
+            dropdownMenu: true,
+            outsideClickDeselects: false,
+            licenseKey: 'non-commercial-and-evaluation',
+            className: 'htCenter htMiddle custom-grid-style',
+            
+            afterInit: () => this.atualizarSumario(),
+            afterFilter: () => this.atualizarSumario(),
+            afterSelectionEnd: (r, c, r2, c2) => { 
+              if (this.hot) {
+                this.selecaoAtual = this.hot.getSelected();
+                this.calcularSomaSelecao(); // DISPARA A CALCULADORA
+              }
+            },
+            afterDeselect: () => { 
+              this.selecaoAtual = []; 
+              this.statsSelecao = { soma: 0, conta: 0, media: 0 }; 
+            },
+            afterChange: (changes, source) => { if (source === 'edit' && changes) this.processarEdicao(changes); }
+          });
+        } catch (err) { console.error("Erro Handsontable:", err); }
+      });
+    },
+
+    atualizarSumario() {
+      if (!this.hot || !this.hot.rootElement) return;
+      try {
+        const pluginFiltro = this.hot.getPlugin('filters');
+        const linhasVisiveis = pluginFiltro.getSelectedVisibleRows();
+        const dadosProcessar = linhasVisiveis.length > 0 ? this.hot.getSourceDataAtRows(linhasVisiveis) : this.hot.getSourceData();
+        if (dadosProcessar) this.stats = Agregador.processarSumario(dadosProcessar);
+      } catch (err) { console.warn("Aguardando estabilidade..."); }
+    },
+
+    processarEdicao(changes) {
+      changes.forEach(([row, prop, oldValue, newValue]) => {
+        if (oldValue === newValue || !this.hot) return;
+        const colIndex = this.hot.propToCol(prop) + 1;
+        const offset = (this.abaAtiva === 'Cockpit') ? 11 : 2;
+        if (typeof google !== 'undefined') google.script.run.apiSetCellValue(this.abaAtiva, row + offset, colIndex, newValue);
+      });
+    },
+
+    definirConfiguracaoColunas(nomesColunas) {
+      const configs = nomesColunas.map(col => {
+        const config = { data: col };
+        if (Tradutor._isFinanceiro(col)) {
+          config.type = 'numeric';
+          config.numericFormat = { pattern: 'R$ 0,00', culture: 'pt-BR' };
+          if (col.includes('P/L')) {
+            config.renderer = (instance, td, row, col, prop, value, cellProperties) => {
+              Handsontable.renderers.NumericRenderer.apply(this, [instance, td, row, col, prop, value, cellProperties]);
+              const num = Tradutor.limparNumero(value);
+              td.style.color = num >= 0 ? '#10b981' : '#f43f5e';
+              td.style.fontWeight = '900';
+              td.style.background = num >= 0 ? '#f0fdf4' : '#fff1f2';
+            };
+          }
+        }
+        return config;
+      });
+      configs.push({
+        data: 'acao_excluir', header: 'AÇÕES', readOnly: true, width: 50,
+        renderer: (instance, td, row, col, prop, value, cellProperties) => {
+          td.innerHTML = '<div style="cursor:pointer; color: #f43f5e; display: flex; justify-content: center;">🗑️</div>';
+          td.onclick = (e) => { e.stopPropagation(); this.solicitarExclusao(row); };
+        }
+      });
+      return configs;
+    },
+
+    solicitarExclusao(rowIndex) {
+      const valorA = this.hot.getDataAtCell(rowIndex, 0);
+      this.modalExcluir.mensagem = `Deseja excluir o registro [${valorA}]?`;
+      this.modalExcluir.visivel = true;
+      this.modalExcluir.callback = () => this.executarExclusaoUnica(rowIndex, valorA);
+      this.$nextTick(() => lucide.createIcons());
+    },
+
+    excluirSelecionados() {
+      const sel = this.hot.getSelected();
+      if (!sel) return;
+      const linhasParaApagar = [];
+      sel.forEach(([r1, c1, r2, c2]) => {
+        for (let i = Math.min(r1, r2); i <= Math.max(r1, r2); i++) if (!linhasParaApagar.includes(i)) linhasParaApagar.push(i);
+      });
+      this.modalExcluir.mensagem = `Excluir ${linhasParaApagar.length} registros?`;
+      this.modalExcluir.visivel = true;
+      this.modalExcluir.callback = () => this.executarExclusaoLote(linhasParaApagar);
+      this.$nextTick(() => lucide.createIcons());
+    },
+
+    confirmarExclusao() { if (this.modalExcluir.callback) this.modalExcluir.callback(); this.fecharModalExcluir(); },
+    fecharModalExcluir() { this.modalExcluir.visivel = false; this.modalExcluir.callback = null; },
+
+    executarExclusaoUnica(rowIndex, valorA) {
+      const offset = (this.abaAtiva === 'Cockpit') ? 11 : 2;
+      this.syncBusy = true;
+      if (typeof google !== 'undefined') {
+        google.script.run
+          .withSuccessHandler((res) => { 
+            this.syncBusy = false; 
+            if(res.success) { this.hot.alter('remove_row', rowIndex); this.atualizarSumario(); }
+            else alert("Erro: " + res.error);
+          })
+          .withFailureHandler((err) => { this.syncBusy = false; alert("Erro no servidor."); })
+          .apiExcluirLinhaSegura(this.abaAtiva, rowIndex + offset, valorA);
+      } else { this.syncBusy = false; }
+    },
+
+    executarExclusaoLote(linhas) {
+      this.syncBusy = true;
+      const offset = (this.abaAtiva === 'Cockpit') ? 11 : 2;
+      if (typeof google !== 'undefined') {
+        google.script.run
+          .withSuccessHandler((res) => { 
+            this.syncBusy = false; 
+            if(res.success) {
+              linhas.sort((a,b) => b-a).forEach(idx => this.hot.alter('remove_row', idx));
+              this.selecaoAtual = [];
+              this.$nextTick(() => this.atualizarSumario());
+            } else alert("Erro: " + res.error);
+          })
+          .withFailureHandler((err) => { this.syncBusy = false; alert("Erro no servidor."); })
+          .apiExcluirLinhasEmLote(this.abaAtiva, linhas.map(l => l + offset));
+      } else { this.syncBusy = false; }
+    },
+
+    abrirModalAdd() {
+      if (!this.hot) return;
+      const colunas = this.hot.getColHeader();
+      const novoForm = {};
+      colunas.forEach(col => { if (col !== 'AÇÕES') novoForm[col] = ""; });
+      this.modalAdd.form = novoForm;
+      this.modalAdd.visivel = true;
+      this.$nextTick(() => lucide.createIcons());
+    },
+
+    fecharModalAdd() { this.modalAdd.visivel = false; this.modalAdd.form = {}; },
+
+    confirmarAdicao() {
+      const dados = [Object.values(this.modalAdd.form)];
+      this.syncBusy = true;
+      this.fecharModalAdd();
+      
+      if (typeof google !== 'undefined') {
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res.success) this.sincronizarBanco();
+            else { alert("Erro ao salvar: " + res.error); this.syncBusy = false; }
+          })
+          .withFailureHandler((err) => {
+            alert("Falha de comunicação com o servidor.");
+            console.error(err);
+            this.syncBusy = false; // DESLIGA O SPINNER EM CASO DE FALHA FATAL
+          })
+          .apiAdicionarLinhas(this.abaAtiva, dados);
+      } else {
+        this.syncBusy = false; // DESLIGA O SPINNER SE TESTADO LOCALMENTE
+        console.warn("API do Google não encontrada (modo local).");
+      }
+    },
+
+    calcularSomaSelecao() {
+      if (!this.hot) return;
+      const selection = this.hot.getSelected();
+      let soma = 0;
+      let conta = 0;
+
+      if (selection) {
+        selection.forEach(([r1, c1, r2, c2]) => {
+          const startRow = Math.min(r1, r2);
+          const endRow = Math.max(r1, r2);
+          const startCol = Math.min(c1, c2);
+          const endCol = Math.max(c1, c2);
+
+          for (let r = startRow; r <= endRow; r++) {
+            for (let c = startCol; c <= endCol; c++) {
+              const val = this.hot.getDataAtCell(r, c);
+              const header = this.hot.getColHeader(c); // Pega o nome da coluna
+
+              // Só tenta converter e somar se a coluna for do tipo financeiro ou quantidade
+              if (Tradutor._isFinanceiro(header) || header.toUpperCase().includes('QTD')) {
+                 const num = Tradutor.limparNumero(val);
+                 if (typeof num === 'number' && !isNaN(num) && val !== "" && val !== null) {
+                   soma += num;
+                   conta++;
+                 }
+              }
+            }
+          }
+        });
+      }
+      this.statsSelecao = { soma, conta, media: conta > 0 ? soma / conta : 0 };
+    },
+
+
+    formatarNumero(val) {
+      if (!val) return "0,00";
+      return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+    },
+
+    formatarBRL(val) { return (typeof Tradutor !== 'undefined') ? Tradutor.formatarMoeda(val) : val; }
+  }
+};
+</script>
+
+<style>
+/* Estilos permanecem os mesmos do seu código original */
+
+  #hot-engine { 
+    width: 100%; 
+    /* Mudamos de 350px para 180px, dando muito mais espaço útil para as linhas */
+    height: calc(100vh - 180px) !important; 
+    min-height: 400px;
+    display: block; 
+    overflow: hidden; 
+    background: white;
+  }
+
+.handsontable { font-size: 11px !important; }  
+.custom-grid-style { font-family: 'JetBrains Mono', monospace !important; font-size: 11px !important; color: #334155 !important; }
+.custom-grid-style tbody tr:nth-child(even) td { background-color: #f8fafc !important; }
+.custom-grid-style .htHeader { background: #f1f5f9 !important; color: #475569 !important; font-weight: 800 !important; border-bottom: 2px solid #cbd5e1 !important; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>
