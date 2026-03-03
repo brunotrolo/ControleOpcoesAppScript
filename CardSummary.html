@@ -6,10 +6,9 @@
         <h3 class="text-[var(--m3-on-surface)] text-lg md:text-xl font-bold tracking-tight uppercase flex items-center">
           Sumário
         </h3>
-        <p class="text-[var(--m3-on-surface-variant)] text-[9px] md:text-[10px] uppercase tracking-[0.2em] font-bold mt-1">Status</p>
-      </div>
-      <div v-if="!isLoading" class="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-[8px] font-black uppercase tracking-widest">
-        {{ totalActiveOps }} Ativos
+        <p class="text-[var(--m3-on-surface-variant)] text-[9px] md:text-[10px] uppercase tracking-[0.2em] font-bold mt-1">
+          {{ totalActiveOps }} Operações
+        </p>
       </div>
     </div>
 
@@ -31,25 +30,27 @@
         <div v-for="field in activeFields" :key="field.key" 
              :class="[
                getPodStyle(field).container,
-               /* 🚨 LARGURA DINÂMICA: 'min-w-[280px]' garante o tamanho base, 'w-fit' deixa expandir conforme o número */
-               isMobile ? 'min-w-[280px] w-fit flex-shrink-0 snap-center shadow-xl py-5 px-8' : 'p-5 hover:scale-[1.02] shadow-sm'
+               isMobile ? 'min-w-[280px] w-fit flex-shrink-0 snap-center shadow-xl py-5 px-8' : 'p-5 hover:-translate-y-1 hover:shadow-md transition-all duration-300 shadow-sm'
              ]"
-             class="rounded-[30px] border transition-all flex flex-col justify-between h-32"
+             class="rounded-[30px] border flex flex-col justify-between h-32 group"
         >
 
           <div class="flex justify-between items-start w-full">
             <span class="text-[11px] font-black uppercase tracking-[0.2em] opacity-80 whitespace-nowrap" :class="getPodStyle(field).text">
               {{ field.label }}
             </span>
+            <span class="opacity-40 group-hover:opacity-100 transition-opacity text-sm" :class="getPodStyle(field).text">
+               {{ getPodStyle(field).icon }}
+            </span>
           </div>
 
           <div class="flex flex-col w-full">
-            <span :class="[ getPodStyle(field).text, isMobile ? 'text-4xl' : 'text-xl' ]" 
+            <span :class="[ getPodStyle(field).text, isMobile ? 'text-4xl' : 'text-2xl lg:text-3xl' ]" 
                   class="font-mono font-black tracking-tighter whitespace-nowrap leading-none mb-1">
-              {{ formatValue(field.value, field.type) }}
+              {{ formatValue(field) }}
             </span>
             
-            <span class="text-[10px] font-bold uppercase opacity-50" :class="getPodStyle(field).text">
+            <span class="text-[10px] font-bold uppercase opacity-60 tracking-widest mt-1" :class="getPodStyle(field).text">
               {{ getPodStyle(field).context }}
             </span>
           </div>
@@ -60,93 +61,113 @@
   </div>
 </template>
 
+
 <script>
 const CardSummary = {
   props: {
-    summaryData: { type: Array, default: () => [] },
-    statsPreCalculados: Object,
-    isMobile: Boolean, // 📱 Injetado pelo AppCore
-    isLoading: Boolean // 🚀 Injetado pelo AppCore
+    summaryData: { type: Array, default: () => [] }, 
+    statsPreCalculados: { type: Object, default: () => ({}) }, 
+    isMobile: Boolean,
+    isLoading: Boolean
   },
   template: '#card-summary-template',
   computed: {
     totalActiveOps() {
-      return this.statsPreCalculados?.totalOps || 0;
+      return this.statsPreCalculados.contagem || 0;
     },
     activeFields() {
       return this.summaryData.filter(f => f.active);
     },
     gridColsStyle() {
       const total = this.activeFields.length || 4;
-      
-      // Se for mobile, usamos 1 coluna ou 2 dependendo do número de campos
-      if (this.isMobile) {
-        return { gridTemplateColumns: `repeat(1, minmax(0, 1fr))` };
-      }
-
-      // Lógica de Desktop (Máximo 8 colunas)
-      let cols = 1;
-      const width = window.innerWidth;
-      if (width >= 640 && width < 1024) cols = 2;
-      if (width >= 1024) cols = total > 8 ? 8 : total;
-
+      if (this.isMobile) return {}; 
+      let cols = Math.min(total, 8);
+      if (window.innerWidth < 1024) cols = Math.min(total, 2);
       return { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` };
     }
   },
   methods: {
-    formatValue(val, type) {
-      if (val === 'N/A' || val === undefined || val === null) return '---';
+    formatValue(field) {
+      const key = field.key; // Ex: 'PREMIO_PM'
       
-      if (type === 'currency' || type === 'moeda') {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+      // 🚨 CORREÇÃO DA BUSCA: Mapeia o ID do Card para a chave real do Cubo
+      const mapeamentoManual = {
+        'PREMIO_PM': 'premioPm',
+        'PREMIO_ATUAL': 'premioAtual',
+        'GANHO_MAXIMO': 'ganhoMaximo',
+        'PERDA_MAXIMA': 'perdaMaxima',
+        'NOCIONAL': 'nocional',
+        'PL_TOTAL': 'plTotalRs',
+        'PL_ATUAL': 'plTotalRs',
+        'PL_TOTAL_PCT': 'plTotalPct',
+        'LUCRO_MAX': 'lucroMaxPct',
+        'IV_CURRENT': 'ivCurrent',
+        'IV_1Y_RANK': 'iv',
+        'VARIATION': 'variacao',
+        'VOLATILITY': 'volatilidade',
+        'POE': 'poe',
+        'DELTA': 'delta',
+        'GAMMA': 'gamma',
+        'VEGA': 'vega',
+        'THETA': 'theta',
+        'RHO': 'rho',
+        'DTE_CORRIDOS': 'dte',
+        'DTE_UTEIS': 'dteUteis'
+      };
+
+      const camelKey = mapeamentoManual[key] || key;
+      const stats = this.statsPreCalculados;
+      
+      let valorFinal = 0;
+
+      // 1. Seleção da Gaveta (Soma ou Média)
+      if (['dte', 'iv', 'ivCurrent', 'volatilidade', 'poe', 'variacao'].includes(camelKey)) {
+        valorFinal = (stats.medias && stats.medias[camelKey]) ? stats.medias[camelKey] : 0;
+      } else {
+        valorFinal = (stats.somas && stats.somas[camelKey]) ? stats.somas[camelKey] : 0;
       }
-      if (type === 'percentage' || type === 'percentage') {
-        return (val || 0).toFixed(2).replace('.', ',') + '%';
+
+      // 2. Formatação Visual
+      if (field.type === 'currency' || field.type === 'moeda') {
+        return Tradutor.formatarMoeda(valorFinal);
       }
-      return new Intl.NumberFormat('pt-BR').format(val || 0);
+      if (field.type === 'percentage' || field.type === 'percentual') {
+        return (valorFinal || 0).toFixed(2).replace('.', ',') + '%';
+      }
+      return new Intl.NumberFormat('pt-BR').format(valorFinal || 0);
     },
     
     getPodStyle(field) {
       const key = field.key;
+      // Busca um valor de referência para a cor
+      const mapeamentoManual = { 'PL_TOTAL': 'plTotalRs', 'PL_ATUAL': 'plTotalRs' };
+      const camelKey = mapeamentoManual[key] || 'plTotalRs';
+      const val = (this.statsPreCalculados.somas && this.statsPreCalculados.somas[camelKey]) || 0;
       
-      // Família 1: Financeiro (Lucro/Prejuízo)
-      if (key.includes('PL_') || key.includes('LUCRO') || key.includes('PERDA') || key.includes('PREMIO') || key.includes('GANHO')) {
-        const val = parseFloat(field.value) || 0;
-        const isNeg = key.includes('PERDA') || val < 0;
+      if (key.includes('PL_') || key.includes('LUCRO') || key.includes('PERDA') || key.includes('GANHO')) {
+        const isNeg = val < 0 || key.includes('PERDA');
         return {
-          container: isNeg ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100',
-          text: isNeg ? 'text-red-800' : 'text-emerald-800',
+          container: isNeg ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100',
+          text: isNeg ? 'text-rose-800' : 'text-emerald-800',
           icon: isNeg ? '' : '',
-          context: isNeg ? 'Risco Ativo' : 'Resultado'
+          context: isNeg ? 'Risco' : 'Performance'
         };
       }
 
-      // Família 2: Gregas (Azul Técnico)
-      if (['THETA', 'DELTA', 'GAMMA', 'VEGA', 'RHO'].includes(key) || key.includes('THETA') || key.includes('DELTA')) {
+      if (['THETA', 'DELTA', 'GAMMA', 'VEGA'].some(g => key.includes(g))) {
         return {
-          container: 'bg-blue-50 border-blue-100',
-          text: 'text-blue-800',
-          icon: '⚡',
+          container: 'bg-indigo-50 border-indigo-100',
+          text: 'text-indigo-800',
+          icon: '',
           context: 'Exposição'
         };
       }
 
-      // Família 3: Volatilidade e Probabilidade (Âmbar)
-      if (key.includes('IV_') || key.includes('VOLATILITY') || key.includes('POE')) {
-        return {
-          container: 'bg-amber-50 border-amber-100',
-          text: 'text-amber-800',
-          icon: '🌪️',
-          context: 'Probabilidade'
-        };
-      }
-
-      // Família 4: Tempo e Quantidade (Slate)
       return {
-        container: 'bg-slate-50 border-slate-100',
-        text: 'text-slate-700',
-        icon: key.includes('DTE') ? '' : '',
-        context: 'Dados Ativo'
+        container: 'bg-slate-50 border-slate-200',
+        text: 'text-slate-800',
+        icon: '',
+        context: 'Dados'
       };
     }
   }
