@@ -92,7 +92,13 @@
           <div :style="{ width: displayStats.itmPct + '%' }" class="h-full bg-red-600 rounded-r-full transition-all duration-1000"></div>
         </div>
         <div class="flex justify-start mt-3">
-          <span :class="statusProtecao.class" class="px-2 py-1 rounded-md border text-[8px] font-black tracking-tighter uppercase shadow-sm transition-all">{{ statusProtecao.label }}</span>
+          <span :class="statusProtecao.class" class="px-2 py-1 rounded-md border text-[8px] font-black tracking-tighter uppercase shadow-sm transition-all">
+            {{ statusProtecao.label }}
+          </span>
+
+          <span v-if="displayStats.poeMedio" class="bg-slate-100 text-slate-600 px-2 py-1 rounded-md text-[8px] font-bold border border-slate-200">
+          POE Médio: {{ displayStats.poeMedio }}
+          </span>
         </div>
       </div>
       <div class="grid grid-cols-3 gap-2 md:gap-4 mt-auto">
@@ -116,12 +122,12 @@ window.CardDistribMoneyness = {
   template: '#card-distrib-moneyness-template',
   computed: {
     displayStats() {
-      // Busca a gaveta exata dentro do cubo pre-calculado
       const stats = this.statsPreCalculados?.moneynessStats;
       
-      // Se não houver dados, retorna o padrão "Aguardando"
+      // Se não houver dados, o card avisa o desenvolvedor no console
       if (!stats || stats.total === 0) {
-        return { otm: 0, atm: 0, itm: 0, otmPct: 0, atmPct: 0, itmPct: 0, total: 0 };
+        if (!this.isLoading) console.warn("⚠️ [Moneyness] Componente montado mas sem dados no Cubo V5.");
+        return { otm: 0, atm: 0, itm: 0, otmPct: 0, atmPct: 0, itmPct: 0, total: 0, poeMedio: '0%' };
       }
       
       return stats;
@@ -176,8 +182,13 @@ window.CardDistribMoneyness = {
       return map[type];
     }
   },
-  mounted() {
-    console.log("Card Moneyness montado.");
+    mounted() {
+      // DIAGNÓSTICO DE INTEGRAÇÃO
+      // Se o card aparecer zerado, o console dirá imediatamente se o problema é o Cubo ou a Prop
+      console.groupCollapsed("📊 Sonda: Card Moneyness");
+      console.log("Status do Cubo:", this.statsPreCalculados ? "✅ RECEBIDO" : "❌ AUSENTE");
+      console.log("Dados de Moneyness:", this.displayStats);
+      console.groupEnd();
   }
 };
 </script>

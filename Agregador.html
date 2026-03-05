@@ -6,14 +6,17 @@ window.Agregador = {
    * Único ponto de entrada. Consome o db global e cospe o `statsPreCalculados`.
    */
   processarSumario(db) {
-    if (!db || !db.cockpit || db.cockpit.length === 0) {
-        console.warn("[AGREGADOR] Cockpit ausente ou vazio.");
-        return this._gerarCuboVazio();
-    }
+    if (!db || !db.cockpit || db.cockpit.length === 0) return this._gerarCuboVazio();
 
-    // 1. ISOLAMENTO TÁTICO (Foco em Trades Ativos)
-    // O Tradutor já limpou, aqui apenas usamos o booleano isAtiva conforme o Blueprint
-    const tradesAtivos = db.cockpit.filter(t => t.isAtiva || String(t.status || '').toUpperCase().trim() === 'ATIVO');
+    // 🕵️ DEPURAÇÃO: Vamos ver o que está chegando antes do filtro
+    const tradesAtivos = db.cockpit.filter(t => {
+      const statusLimpo = String(t.status || '').toUpperCase().trim();
+      const ativaFlag = t.isAtiva === true;
+      return ativaFlag || statusLimpo === 'ATIVO';
+    });
+
+    // SONDA: Se isso aqui der 0 e o cockpit tiver 8, o problema é o texto da coluna STATUS
+    console.log(`[AGREGADOR] Cockpit: ${db.cockpit.length} linhas | Ativos filtrados: ${tradesAtivos.length}`);
 
     // 2. ENRIQUECIMENTO (JOIN)
     // Aqui cruzamos os dados do Cockpit com as Gregas para ter o Delta/Gamma total
@@ -174,48 +177,30 @@ window.Agregador = {
     };
   },
 
-  _calcularMoneyness(tradesAtivos) {
-    let totalOtm = 0, totalAtm = 0, totalItm = 0;
-    let somaProbabilidade = 0;
-    let contProbabilidade = 0;
+  _calcularMoneyness(trades) {
+      if (!trades || trades.length === 0) return this._gerarMoneynessVazio();
+      
+      let totalOtm = 0, totalAtm = 0, totalItm = 0;
+      
+      trades.forEach(op => {
+        // CORREÇÃO: Busca as chaves sanitizadas do Tradutor V5 (moneynessCode)
+        const val = String(op.moneynessCode || op.moneyness || '').toUpperCase().trim();
+        if (val.includes('OTM')) totalOtm++;
+        else if (val.includes('ITM')) totalItm++;
+        else totalAtm++;
+      });
 
-    const total = tradesAtivos.length;
-    if (total === 0) return this._gerarCuboVazio().moneynessStats;
+      const total = totalOtm + totalAtm + totalItm;
+      if (total === 0) return this._gerarMoneynessVazio();
 
-    tradesAtivos.forEach(op => {
-      // 1. Classificação de Posicionamento (Moneyness)
-      const m = op.moneynessCode || 'ATM'; 
-      if (m === 'ITM') totalItm++;
-      else if (m === 'OTM') totalOtm++;
-      else totalAtm++;
-
-      // 2. Agregação de Probabilidade (POE - vindo do Calc_Greeks)
-      if (op.probabilidadeSucesso !== undefined && op.probabilidadeSucesso !== null) {
-        somaProbabilidade += op.probabilidadeSucesso;
-        contProbabilidade++;
-      }
-    });
-
-    const otmPct = Math.round((totalOtm / total) * 100);
-    const poeMedio = contProbabilidade > 0 ? (somaProbabilidade / contProbabilidade) : 0;
-    
-    // Lógica de Status Baseada em Defesa (OTM) e Probabilidade (POE)
-    let statusKey = 'ALERTA';
-    if (otmPct >= 80 && poeMedio >= 0.7) statusKey = 'BLINDADO';
-    else if (otmPct >= 50 || poeMedio >= 0.6) statusKey = 'CONTROLADO';
-
-    return { 
-        otm: totalOtm, // Adicionado contagem real
-        atm: totalAtm, // Adicionado contagem real
-        itm: totalItm, // Adicionado contagem real
-        total: total,  // Adicionado total        
-        otmPct, 
-        atmPct: Math.round((totalAtm / total) * 100), 
-        itmPct: Math.round((totalItm / total) * 100),
-        poeMedio: (poeMedio * 100).toFixed(1) + '%', // Formatação para UI
-        statusKey
-    };
-  },
+      return { 
+          otm: totalOtm, atm: totalAtm, itm: totalItm, total: total,
+          otmPct: Math.round((totalOtm / total) * 100), 
+          atmPct: Math.round((totalAtm / total) * 100), 
+          itmPct: Math.round((totalItm / total) * 100),
+          statusKey: (totalOtm / total) >= 0.8 ? 'BLINDADO' : (totalOtm / total) >= 0.5 ? 'CONTROLADO' : 'ALERTA'
+      };
+    },
 
   _enriquecerDados(trades, greeks) {
     if (!greeks || greeks.length === 0) return trades;
@@ -232,12 +217,14 @@ window.Agregador = {
   _gerarCuboVazio() {
     return {
         meta: { status: 'EMPTY' },
-        resumoGlobal: { totalOperacoes: 0, nocionalTotal: 0, lucroMaximoProjetado: 0, plAbertoTotal: 0, plSessaoTotal: 0, taxaMediaRetorno: 0 },
+        resumoGlobal: { totalOps: 0, nocional: 0, plTotalValor: 0, plTotalPct: 0 },
+        moneynessStats: this._gerarMoneynessVazio(), // Garante que o Raio-X não venha undefined
         distribuicaoVencimentos: [],
-        concentracaoRisco: [],
-        moneynessStats: { otmPct: 0, atmPct: 0, itmPct: 0, statusKey: 'AGUARDANDO' },
-        performanceStats: { noLucro: { qtd: 0, pct: 0 }, noPrejuizo: { qtd: 0, pct: 0 }, noBreakeven: { qtd: 0, pct: 0 }, performanceKey: 'AGUARDANDO' }
+        concentracaoRisco: []
     };
+  },
+  _gerarMoneynessVazio() {
+    return { otm: 0, atm: 0, itm: 0, total: 0, otmPct: 0, atmPct: 0, itmPct: 0, statusKey: 'ALERTA' };
   }
 };
 </script>

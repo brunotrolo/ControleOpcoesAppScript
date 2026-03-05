@@ -21,16 +21,6 @@
 
       <body class="bg-[var(--app-bg)] text-[var(--m3-on-surface)] font-sans antialiased overflow-hidden">
 
-        <div id="debug-panel" style="position:fixed; bottom:10px; right:10px; z-index:9999; background:rgba(0,0,0,0.8); color:#00ff00; padding:10px; font-family:monospace; font-size:10px; border-radius:8px; border:1px solid #00ff00; max-width:250px;">
-          <div><strong>🛰️ TELEMETRIA V5</strong></div>
-          <hr style="border-color:#333">
-          <div>Status: <span id="debug-status">Aguardando...</span></div>
-          <div>Loading: <span id="debug-loading">?</span></div>
-          <div>Trades no DB: <span id="debug-trades">0</span></div>
-          <div>Cubo Status: <span id="debug-cubo">?</span></div>
-          <div id="debug-error" style="color:#ff4444; margin-top:5px; display:none;"></div>
-        </div>
-
       <div id="app" v-cloak class="flex h-screen w-screen overflow-hidden">
         
         <menu-sidebar 
