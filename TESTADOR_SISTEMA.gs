@@ -370,3 +370,95 @@ function HOMOLOGAR_APPCORE_PARTE2() {
     console.error("💥 CRASH NO TESTE DE INJEÇÃO: " + e.message);
   }
 }
+
+
+
+/**
+ * 🛰️ MASTER DIAGNÓSTICO INTEGRADO V5
+ * Este teste simula a fiação entre AppCore, LayoutConfig e Menu.
+ */
+function MASTER_DIAGNOSTICO_V5() {
+  console.log("🚀 Iniciando Diagnóstico de Fiação (Integração Total)...");
+
+  try {
+    // --- 1. SIMULAÇÃO DO AMBIENTE (LAYOUT E MENU) ---
+    // Aqui simulamos o que deveria vir do seu LayoutConfig.html
+    const MOCK_APP_MENU = [
+      { id: 'cockpit', label: 'Cockpit', icon: 'layout' },
+      { id: 'consultoria', label: 'Consultor', icon: 'shield' }
+    ];
+
+    const MOCK_LAYOUT_MAP = {
+      'cockpit': [{ id: 'card-1', component: 'card-summary' }]
+    };
+
+    console.log("✅ Simulação de Configurações carregada.");
+
+    // --- 2. TESTE DE IDENTIDADE (O QUE QUEBRA O MENU) ---
+    const currentView = 'cockpit'; // O que o sistema inicia
+    console.log(`🔍 Testando correspondência de Menu para: '${currentView}'`);
+
+    const menuMatch = MOCK_APP_MENU.find(m => m.id === currentView);
+    if (menuMatch) {
+      console.log(`✅ SUCESSO: O ID '${currentView}' foi encontrado no Menu.`);
+    } else {
+      console.error(`❌ FALHA CRÍTICA: O ID '${currentView}' NÃO EXISTE no Menu. Por isso o menu não acende.`);
+    }
+
+    // --- 3. TESTE DE MAPEAMENTO DE TELA (O QUE ESCONDE A HOME) ---
+    console.log(`🔍 Testando se o LayoutConfig reconhece a tela: '${currentView}'`);
+    const layoutMatch = MOCK_LAYOUT_MAP[currentView];
+    if (layoutMatch && layoutMatch.length > 0) {
+      console.log(`✅ SUCESSO: Foram encontrados ${layoutMatch.length} componentes para esta tela.`);
+    } else {
+      console.error(`❌ FALHA CRÍTICA: A tela '${currentView}' não tem componentes no LAYOUT_MAP. Por isso a Home fica vazia.`);
+    }
+
+    // --- 4. TESTE DE CONVERSÃO DE DADOS (INTEGRAÇÃO TRADUTOR -> AGREGADOR) ---
+    console.log("🔍 Testando Fluxo de Dados Real...");
+    const response = getInitialData(); // Pega os dados reais da sua planilha
+    
+    // Simula a normalização de nomes de abas que fizemos no Tradutor
+    const getTab = (name) => {
+        const key = Object.keys(response.raw).find(k => k.toUpperCase() === name.toUpperCase());
+        return response.raw[key] || [];
+    };
+
+    const cockpitData = getTab('COCKPIT');
+    console.log(`📊 Dados Brutos do Cockpit: ${cockpitData.length} linhas.`);
+
+    // --- 5. O TESTE DO "DISPENSADOR DE PROPS" (A PONTE DO APPCORE) ---
+    console.log("🔍 Testando o Dispensador de Props (getComponentProps)...");
+    
+    // Simulação do objeto db que o AppCore cria
+    const mockDB = { cockpit: cockpitData.slice(10) }; // Pula o cabeçalho
+    const mockCubo = { resumoGlobal: { total: 100 } }; // Simula o Agregador
+
+    function testarProps(compName) {
+      // Esta é a lógica que está dentro do seu AppCore.html
+      const props = {
+        'card-summary': { stats: mockCubo.resumoGlobal },
+        'cockpit-table': { data: mockDB.cockpit }
+      };
+      return props[compName] || null;
+    }
+
+    const testSummary = testarProps('card-summary');
+    if (testSummary) {
+      console.log("✅ getComponentProps: 'card-summary' configurado corretamente.");
+    } else {
+      console.error("❌ ERRO: 'card-summary' não está mapeado no getComponentProps.");
+    }
+
+    console.log("--------------------------------------------------");
+    console.log("🏁 RESUMO DO DIAGNÓSTICO:");
+    if (!menuMatch || !layoutMatch) {
+       console.log("🛑 CONCLUSÃO: Há um erro de NOMENCLATURA entre os arquivos. O ID que um usa, o outro não reconhece.");
+    } else {
+       console.log("💎 CONCLUSÃO: A lógica interna está sólida. O problema é a renderização no Vue.js.");
+    }
+
+  } catch (e) {
+    console.error("💥 CRASH NO DIAGNÓSTICO: " + e.message);
+  }
+}

@@ -35,13 +35,10 @@ const app = createApp({
         
         // 2. O MOTOR DE RENDERIZAÇÃO: Pega o layout da tela atual (Imune a Maiúsculas)
         const currentLayout = computed(() => {
-            if (window.LAYOUT_MAP) {
-                // Força a comparação em minúsculo para evitar erros de digitação
-                const viewSegura = String(currentView.value).toLowerCase();
-                return window.LAYOUT_MAP[viewSegura] || [];
-            }
-            return [];
-        });
+              const map = window.LAYOUT_MAP || {};
+              const view = String(currentView.value).toLowerCase();
+              return map[view] || [];
+            });
 
         const toggleSidebar = () => { 
             isCollapsed.value = !isCollapsed.value;
@@ -87,40 +84,30 @@ const app = createApp({
 
         // Distribui os componentes do LAYOUT_MAP para os grids do Index.html
         const topGridComponents = computed(() => {
-            if (isMobile.value) {
-                // No Mobile, pega tudo que vem ANTES do que está no carrossel
-                const sequenceIds = (window.MOBILE_ORCHESTRATOR_CONFIG?.sequence || []).map(s => s.id);
-                const firstCarouselIdx = currentLayout.value.findIndex(c => sequenceIds.includes(c.id));
-                return firstCarouselIdx === -1 ? currentLayout.value : currentLayout.value.slice(0, firstCarouselIdx);
-            }
-            return currentLayout.value; // No Desktop, exibe tudo no grid superior
-        });
+              if (!isMobile.value) return currentLayout.value; // No PC, mostra tudo no topo
+              
+              // No Celular, pega o que vem antes do Carrossel
+              const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
+              const seqIds = config.sequence.map(s => s.id);
+              const idx = currentLayout.value.findIndex(c => seqIds.includes(c.id));
+              return idx === -1 ? currentLayout.value : currentLayout.value.slice(0, idx);
+            });
 
         const mobileCarouselComponents = computed(() => {
-            if (!isMobile.value) return [];
-            const sequenceIds = (window.MOBILE_ORCHESTRATOR_CONFIG?.sequence || []).map(s => s.id);
-            return currentLayout.value.filter(c => sequenceIds.includes(c.id));
-        });
+              if (!isMobile.value) return [];
+              const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
+              const seqIds = config.sequence.map(s => s.id);
+              return currentLayout.value.filter(c => seqIds.includes(c.id));
+            });
 
         const bottomGridComponents = computed(() => {
-            if (!isMobile.value) return [];
-            const sequenceIds = (window.MOBILE_ORCHESTRATOR_CONFIG?.sequence || []).map(s => s.id);
-            const firstCarouselIdx = currentLayout.value.findIndex(c => sequenceIds.includes(c.id));
-            if (firstCarouselIdx === -1) return [];
-            return currentLayout.value.slice(firstCarouselIdx).filter(c => !sequenceIds.includes(c.id));
-        });
-
-
-
-
-
-
-
-
-
-
-
-
+              if (!isMobile.value) return [];
+              const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
+              const seqIds = config.sequence.map(s => s.id);
+              const idx = currentLayout.value.findIndex(c => seqIds.includes(c.id));
+              if (idx === -1) return [];
+              return currentLayout.value.slice(idx).filter(c => !seqIds.includes(c.id));
+            });
 
         const getMobileLayoutZones = computed(() => {
             if (window.LayoutConfig && window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG) {
@@ -274,20 +261,31 @@ const app = createApp({
         });        
 
         return {
-            // Estado e Dados
-            db, cuboOlap, isLoading, hasError, errorMessage, lastSync, status,
-            
-            // Navegação e Layout
+            // --- ESTADO E DADOS ---
+            db, cuboOlap, isLoading, status, hasError, errorMessage, lastSync,
+
+            // --- NAVEGAÇÃO E LAYOUT ---
             currentView, navigate, isCollapsed, toggleSidebar, isMobile,
             menu, currentMenuLabel, currentLayout, dynamicSummaryData,
-            
-            // Componentes e Sincronia
+
+            // --- COMPONENTES DE INTERFACE (MOBILE/GRID) ---
+            topGridComponents, 
+            mobileCarouselComponents, 
+            bottomGridComponents,
+            getMobileLayoutZones,
+
+            // --- LÓGICA E SINCRONIZAÇÃO ---
             getComponentProps, 
             handleRefresh: sincronizarDashboard,
-            timerVisual, formatCountdown, isAutoSyncEnabled, isOrquestrando, toggleAutoSync,
-            
-            // Suporte Mobile
-            topGridComponents, mobileCarouselComponents, bottomGridComponents, getMobileLayoutZones,
+            timerVisual, 
+            formatCountdown, 
+            isOrquestrando, 
+            isAutoSyncEnabled, 
+            toggleAutoSync,
+
+            // --- CONFIGURAÇÕES TÉCNICAS E PROTEÇÃO ---
+            // 🛡️ PROTEÇÃO: Fallback caso o objeto global não exista (Note: 'sequence' foi removido no novo trecho)
+            // MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {}, sequence: [] }
             MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {} }
         };
     } // Fim do setup()

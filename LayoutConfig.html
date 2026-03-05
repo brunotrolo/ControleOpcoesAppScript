@@ -2,7 +2,7 @@
 /**
  * APP_MENU: Define a estrutura de navegação da Sidebar.
  */
-const APP_MENU = [
+window.APP_MENU = [
   { id: 'cockpit',       label: 'Cockpit',                  icon: 'layout' },
   { id: 'consultoria',   label: 'Consultor Portifolio',     icon: 'shield-check' },
   { id: 'dados-ativos',  label: 'Gestão de Ativos',         icon: 'database' },
@@ -17,7 +17,7 @@ const APP_MENU = [
 /**
  * LAYOUT_MAP: Define os componentes de cada tela.
  */
-const LAYOUT_MAP = {
+window.LAYOUT_MAP = {
   // Tela de Configurações
   'config': [ 
     {
@@ -167,7 +167,7 @@ const LAYOUT_MAP = {
  * Define a sequência e as regras de exibição para a "Esteira de Inteligência" no S22 Ultra.
  * Esta lógica é ignorada no Desktop, mantendo o layout original intacto.
  */
-const MOBILE_ORCHESTRATOR_CONFIG = {
+window.MOBILE_ORCHESTRATOR_CONFIG = {
   // Ativa/Desativa a esteira globalmente no mobile
   enabled: true,
 
