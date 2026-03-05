@@ -71,7 +71,7 @@
 </template>
 
 <script>
-const MenuSidebar = {
+window.MenuSidebar = {
   props: { menu: Array, activeView: String, status: String, isCollapsed: Boolean, isLoading: Boolean },
   template: '#menu-sidebar-template',
   emits: ['navigate', 'toggle'],

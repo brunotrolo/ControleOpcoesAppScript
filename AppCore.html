@@ -197,7 +197,7 @@ const app = createApp({
             // 🔥 DISPARAR TESTES UNITÁRIOS ANTES DA SINCRONIZAÇÃO
             if (window.SuiteTestesV5) {
                 window.SuiteTestesV5.run();
-
+            }
 
             // Dispara a primeira carga de dados
             sincronizarDashboard();
@@ -212,14 +212,17 @@ const app = createApp({
         return {
             // Motor de Dados V5
             db, cuboOlap, isLoading, hasError, errorMessage, lastSync, status,
-            sincronizarDashboard, getComponentProps, getMobileLayoutZones, 
+            sincronizarDashboard, getComponentProps, getMobileLayoutZones, formatCountdown,
 
             // Chassi de UI e Roteamento
             currentView, navigate, isCollapsed, toggleSidebar,
             isMobile, topGridComponents, mobileCarouselComponents, bottomGridComponents,
             
             // Polling e Automação
-            timerVisual, formatCountdown, isOrquestrando, isAutoSyncEnabled, toggleAutoSync
+            timerVisual,  
+            currentMenuLabel: computed(() => db.value.configGlobal?.uiLabelTitulo || 'Dashboard'), // Adicione esta linha
+            menu: ref([]), // Adicione esta linha (vazia por enquanto para não crashar)
+            isOrquestrando, isAutoSyncEnabled, toggleAutoSync
         };
     } // Fim do setup()
 }); // Fim do createApp
@@ -254,3 +257,4 @@ COMPONENTES_V5.forEach(([name, comp]) => {
 
 // Ignição Total
 app.mount('#app');
+</script>
