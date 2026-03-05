@@ -462,3 +462,295 @@ function MASTER_DIAGNOSTICO_V5() {
     console.error("💥 CRASH NO DIAGNÓSTICO: " + e.message);
   }
 }
+
+
+/**
+ * 🛰️ TESTE UNITÁRIO 1: INTEGRALIDADE DOS ARQUIVOS FRONT-END
+ * Verifica se todos os componentes registrados no Index.html realmente existem no servidor.
+ */
+function TESTE_01_ARQUIVOS_HTML() {
+  console.log("🚀 [TESTE 1] Verificando existência dos arquivos HTML dos Componentes...");
+  
+  const componentes = [
+    'MenuSidebar', 'Tradutor', 'Agregador', 'AppCore', 'LayoutConfig',
+    'ConsultoriaView', 'TickerTape', 'CardSummary', 'CardDistribMoneyness',
+    'CardMoneyness', 'CardVencimentos', 'CardConcentracao', 'CardResultado',
+    'CarouselAtivas', 'CockpitTable', 'SettingsView', 'AutomationView',
+    'LogConsole', 'ComparativoView', 'ScannerView', 'NectonImport',
+    'GestaoAtivos', 'GestaoAtivosSidebar', 'BancoDeDados'
+  ];
+
+  let falhas = 0;
+
+  componentes.forEach(comp => {
+    try {
+      HtmlService.createHtmlOutputFromFile(comp);
+      console.log(`✅ Arquivo encontrado: ${comp}.html`);
+    } catch (e) {
+      console.error(`❌ ERRO CRÍTICO: Arquivo não encontrado: ${comp}.html`);
+      falhas++;
+    }
+  });
+
+  console.log("--------------------------------------------------");
+  if (falhas === 0) console.log("🏆 TESTE 1 APROVADO: Todos os arquivos visuais existem.");
+  else console.error(`🛑 TESTE 1 REPROVADO: Faltam ${falhas} arquivos. O Vue.js vai quebrar ao tentar carregá-los.`);
+}
+
+
+/**
+ * 🛰️ TESTE UNITÁRIO 2: MAPEAMENTO DE PROPS (DATA BINDING)
+ * Simula a entrega de dados para cada card e verifica se não há "vazios".
+ */
+function TESTE_02_SIMULADOR_PROPS() {
+  console.log("🚀 [TESTE 2] Simulando injeção de dados nos Componentes...");
+
+  // 1. Mock do Banco de Dados (O que o Tradutor e Agregador entregariam)
+  const mockDB = {
+    cockpit: [{ id: 1, ativo: 'PETR4', status: 'ATIVO' }],
+    dadosAtivos: [{ ticker: 'PETR4', cotacao: 35.50 }],
+    configGlobal: { uiLabelTitulo: "Dashboard V5" }
+  };
+  
+  const mockCuboOlap = {
+    listaAtivas: [{ id: 1, ativo: 'PETR4' }],
+    plTotal: 15000,
+    nocionalTotal: 120000
+  };
+
+  // 2. A função exata que roda no seu AppCore.html
+  function getComponentProps(componentName) {
+    const customProps = {
+      'ticker-tape': { ativos: mockDB.dadosAtivos },
+      'card-summary': { statsPreCalculados: mockCuboOlap },
+      'cockpit-table': { data: mockDB.cockpit },
+      'card-vencimentos': { operations: mockCuboOlap.listaAtivas },
+      'card-resultado': { operations: mockCuboOlap.listaAtivas },
+      'consultoria-view': { operations: mockCuboOlap.listaAtivas }
+    };
+    return customProps[componentName] || { erro: "Componente não mapeado" };
+  }
+
+  // 3. Testando a entrega para componentes críticos
+  const alvos = ['card-summary', 'cockpit-table', 'card-vencimentos', 'card-distrib-moneyness'];
+  
+  alvos.forEach(alvo => {
+    const props = getComponentProps(alvo);
+    if (props.erro) {
+      console.error(`❌ FALHA: O componente '${alvo}' NÃO está mapeado no AppCore. Ele vai aparecer vazio.`);
+    } else {
+      const chaves = Object.keys(props);
+      console.log(`✅ SUCESSO: O componente '${alvo}' recebeu as variáveis: [${chaves.join(', ')}]`);
+    }
+  });
+}
+
+/**
+ * 🛰️ TESTE UNITÁRIO 3: AUDITORIA DO TRADUTOR V5
+ * Verifica se os cabeçalhos da aba COCKPIT estão sendo lidos corretamente.
+ */
+function TESTE_03_MOTOR_TRADUTOR() {
+  console.log("🚀 [TESTE 3] Testando leitura da planilha Cockpit...");
+  
+  try {
+    const response = getInitialData();
+    const rawCockpit = response.raw['COCKPIT'];
+    
+    if (!rawCockpit) throw new Error("Aba 'COCKPIT' não encontrada na planilha.");
+    
+    // Pega o cabeçalho (linha 9 ou 10 baseada no seu código)
+    const cabecalho = rawCockpit[9]; 
+    console.log("📊 Cabeçalhos reais encontrados na planilha:");
+    console.log(cabecalho.slice(0, 15).join(" | ")); // Mostra os 15 primeiros
+
+    const chavesCriticas = ['STATUS', 'TICKER', 'P/L TOTAL', 'VENCIMENTO'];
+    let faltantes = [];
+
+    chavesCriticas.forEach(chave => {
+      // Procura com tolerância a espaços e maiúsculas
+      const achou = cabecalho.some(c => String(c).toUpperCase().trim().includes(chave));
+      if (!achou) faltantes.push(chave);
+    });
+
+    if (faltantes.length > 0) {
+      console.error(`❌ ALERTA: As seguintes colunas NÃO foram encontradas: ${faltantes.join(', ')}`);
+      console.log("💡 O Agregador vai falhar ao calcular esses dados.");
+    } else {
+      console.log("✅ SUCESSO: Todas as colunas críticas existem na planilha.");
+    }
+
+  } catch (e) {
+    console.error("💥 FALHA NO TESTE 3: " + e.message);
+  }
+}
+
+
+/**
+ * 🛰️ TESTE UNITÁRIO 4: TOPOGRAFIA DA PLANILHA
+ * Imprime as primeiras linhas para vermos o que o Tradutor está recebendo.
+ */
+function TESTE_04_ESTRUTURA_PLANILHA() {
+  console.log("🚀 [TESTE 4] Mapeando a Topografia da Planilha Cockpit...");
+  
+  try {
+    const response = getInitialData();
+    const raw = response.raw['COCKPIT'] || response.raw['Cockpit'];
+    
+    if (!raw) throw new Error("Aba Cockpit não encontrada.");
+
+    console.log("📊 Primeiras 12 linhas do banco de dados bruto:");
+    for(let i = 0; i < 12; i++) {
+      // Pega apenas as 8 primeiras colunas para o log não ficar gigante
+      let amostra = raw[i].slice(0, 8).map(celula => celula === "" ? "[VAZIO]" : celula);
+      console.log(`Linha ${i + 1}: ${amostra.join(" | ")}`);
+    }
+
+  } catch (e) {
+    console.error("💥 FALHA NO TESTE 4: " + e.message);
+  }
+}
+
+
+/**
+ * 🛰️ TESTE UNITÁRIO 5: SIMULAÇÃO DO ERRO DO TRADUTOR
+ * Prova que o Tradutor está usando a linha errada como cabeçalho.
+ */
+function TESTE_05_SIMULACAO_TRADUTOR() {
+  console.log("🚀 [TESTE 5] Simulando a lógica de cabeçalho do Tradutor V5...");
+  
+  try {
+    const response = getInitialData();
+    const raw = response.raw['COCKPIT'] || response.raw['Cockpit'];
+
+    // Simula a linha que o Tradutor atual está pegando (matriz[0])
+    const cabecalhoErrado = raw[0].slice(0, 6).map(c => c === "" ? "[VAZIO]" : c);
+    console.log("❌ O Tradutor V5 acha que o cabeçalho é: " + cabecalhoErrado.join(" | "));
+
+    // Simula a linha que o Tradutor DEVERIA pegar (ex: linha 10)
+    // O Teste 3 nos mostrou que a linha 10 tem os dados reais.
+    const cabecalhoCerto = raw[9].slice(0, 6);
+    console.log("✅ O cabeçalho real é: " + cabecalhoCerto.join(" | "));
+
+    if (cabecalhoErrado[0] === "[VAZIO]") {
+      console.log("🛑 CONCLUSÃO: O Tradutor está cego. Ele está tentando usar células vazias como nome de variável. É por isso que tudo fica vazio!");
+    }
+
+  } catch (e) {
+    console.error("💥 FALHA NO TESTE 5: " + e.message);
+  }
+}
+
+
+/**
+ * 🛰️ TESTE UNITÁRIO 6: RAIO-X DO MAPEAMENTO DE COLUNAS
+ * Verifica se as palavras exatas do Dicionário batem com o Cabeçalho da Planilha.
+ */
+function TESTE_06_RAIO_X_DICIONARIO() {
+  console.log("🚀 [TESTE 6] Iniciando Raio-X de Mapeamento na Linha 10...");
+  
+  try {
+    const response = getInitialData();
+    const raw = response.raw['COCKPIT'] || response.raw['Cockpit'];
+    
+    // Captura a Linha 10 (Índice 9) e limpa espaços extras das pontas
+    const cabecalhos = raw[9].map(h => String(h).toUpperCase().trim());
+    const dadosLinha11 = raw[10];
+
+    console.log("🔍 Procurando as chaves vitais do V5 no cabeçalho:");
+
+    // Estas são as palavras exatas que o seu Tradutor.html está procurando
+    const chavesParaTestar = {
+      'TICKER': 'tickerAtivo',
+      'P/L TOTAL': 'plTotalValor',
+      'P/L TOTAL %': 'plTotalPct',
+      'STATUS': 'status',
+      'VENCIMENTO': 'dataVencimento',
+      'NOCIONAL': 'nocionalTotal'
+    };
+
+    let falhas = 0;
+
+    for (const [colunaExcel, chaveV5] of Object.entries(chavesParaTestar)) {
+      const idx = cabecalhos.indexOf(colunaExcel);
+      
+      if (idx !== -1) {
+        let valor = dadosLinha11[idx] === "" ? "[VAZIO]" : dadosLinha11[idx];
+        console.log(`✅ ENCONTRADO: '${colunaExcel}' (Coluna ${idx + 1}) -> Vai virar '${chaveV5}'. Valor do Trade: ${valor}`);
+      } else {
+        console.error(`❌ ALERTA: A coluna exata '${colunaExcel}' NÃO FOI ENCONTRADA no cabeçalho da planilha!`);
+        falhas++;
+      }
+    }
+
+    console.log("--------------------------------------------------");
+    if (falhas > 0) {
+      console.log(`🛑 CONCLUSÃO: ${falhas} colunas vitais falharam no cruzamento. Se 'P/L TOTAL' falhou, os cards do Dashboard ficarão zerados.`);
+    } else {
+      console.log("💎 CONCLUSÃO: O Dicionário está perfeito. O problema é 100% no visual (Handsontable do Desktop).");
+    }
+
+  } catch (e) {
+    console.error("💥 FALHA NO TESTE 6: " + e.message);
+  }
+}
+
+/**
+ * 🛡️ Função Ajudante para os Testes (Coloque no topo do TESTADOR_SISTEMA.gs)
+ */
+function getAbaDinamica(payloadRaw, nomeProcurado) {
+  const chaveReal = Object.keys(payloadRaw).find(k => 
+    String(k).toUpperCase() === String(nomeProcurado).toUpperCase()
+  );
+  return chaveReal ? payloadRaw[chaveReal] : null;
+}
+
+/**
+ * 🛰️ TESTE UNITÁRIO 7: PROVA REAL DA ABA DINÂMICA
+ */
+function TESTE_07_ABAS_REAIS() {
+  console.log("🚀 [TESTE 7] Testando Busca Dinâmica de Abas nos Testes...");
+  
+  try {
+    const response = getInitialData(); // Sua API perfeita puxando tudo
+    
+    // O Teste agora usa a busca inteligente
+    const rawCockpit = getAbaDinamica(response.raw, 'COCKPIT');
+    
+    if (rawCockpit && rawCockpit.length > 0) {
+      console.log("✅ SUCESSO ABSOLUTO: O teste encontrou a aba Cockpit ignorando diferenças de maiúsculas/minúsculas!");
+      console.log(`📊 Linhas carregadas com sucesso: ${rawCockpit.length}`);
+    } else {
+      console.error("❌ FALHA no Teste.");
+    }
+
+  } catch(e) {
+    console.error("💥 ERRO NO TESTE 7: " + e.message);
+  }
+}
+
+/**
+ * 🛰️ TESTE UNITÁRIO 8: RAIO-X DA ABA DADOS_ATIVOS
+ */
+function TESTE_08_DADOS_ATIVOS() {
+  console.log("🚀 [TESTE 8] Analisando a aba DADOS_ATIVOS...");
+  
+  try {
+    const response = getInitialData();
+    const rawDados = getAbaDinamica(response.raw, 'DADOS_ATIVOS');
+    
+    if (!rawDados) {
+      console.error("❌ FALHA: A aba DADOS_ATIVOS não foi encontrada na planilha!");
+      return;
+    }
+
+    console.log(`✅ Aba encontrada! Total de linhas: ${rawDados.length}`);
+    console.log("📊 Primeiras 4 linhas da aba (para acharmos o cabeçalho):");
+    
+    for(let i = 0; i < Math.min(4, rawDados.length); i++) {
+      console.log(`Linha ${i + 1}: ${rawDados[i].slice(0, 5).join(" | ")}`);
+    }
+
+  } catch(e) {
+    console.error("💥 ERRO NO TESTE 8: " + e.message);
+  }
+}

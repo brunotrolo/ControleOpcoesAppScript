@@ -13,7 +13,7 @@ window.Agregador = {
 
     // 1. ISOLAMENTO TÁTICO (Foco em Trades Ativos)
     // O Tradutor já limpou, aqui apenas usamos o booleano isAtiva conforme o Blueprint
-    const tradesAtivos = db.cockpit.filter(t => t.isAtiva || t.status === 'ATIVO');
+    const tradesAtivos = db.cockpit.filter(t => t.isAtiva || String(t.status || '').toUpperCase().trim() === 'ATIVO');
 
     // 2. ENRIQUECIMENTO (JOIN)
     // Aqui cruzamos os dados do Cockpit com as Gregas para ter o Delta/Gamma total
@@ -30,27 +30,59 @@ window.Agregador = {
     };
   },
 
+  _mapearColunas(headers) {
+      // V5: Mapeamento direto das chaves blindadas do Tradutor
+      return {
+        STATUS: 'status',
+        PL_TOTAL: 'plTotalValor',
+        PL_SESSAO: 'plSessaoValor',
+        PL_PCT: 'plTotalPct',
+        LUCRO_MAX: 'potencialLucroPct',
+        PERDA_MAX: 'perdaMaxima',
+        NOCIONAL: 'nocional',
+        MONEYNESS: 'moneynessCode',
+        TIPO: 'tipoOpcao',
+        DIRECAO: 'direcaoTrade',
+        VENCIMENTO: 'dataVencimento',
+        STRIKE: 'strike',
+        SPOT: 'spotPrice',
+        PREMIO_ENTRADA: 'premioMedioEntrada',
+        DELTA: 'delta',
+        GAMMA: 'gamma',
+        VEGA: 'vega',
+        THETA: 'theta',
+        RHO: 'rho',
+        IV: 'ivAtual',
+        POE: 'probabilidadeSucesso'
+      };
+    },
+
   // =========================================================================
   // 🧮 GAVETAS DE CÁLCULO (Motor Analítico)
   // =========================================================================
 
   _calcularMetricasGlobais(trades) {
-    const globais = {
-        totalOperacoes: trades.length,
-        // CORREÇÃO DE CHAVES: Agora batem 100% com o Dicionário do Tradutor
-        nocionalTotal: trades.reduce((acc, t) => acc + (t.nocionalTotal || 0), 0),
-        lucroMaximoProjetado: trades.reduce((acc, t) => acc + (t.ganhoMaximo || 0), 0),
-        plAbertoTotal: trades.reduce((acc, t) => acc + (t.plTotalValor || 0), 0),
-        plSessaoTotal: trades.reduce((acc, t) => acc + (t.plSessaoValor || 0), 0),
-        deltaNet: trades.reduce((acc, t) => acc + (t.delta || 0), 0), // Novo: Risco Direcional
-        taxaMediaRetorno: 0 
-    };
+    if (!trades || trades.length === 0) return {};
 
-    if (globais.nocionalTotal > 0) {
-        globais.taxaMediaRetorno = (globais.lucroMaximoProjetado / globais.nocionalTotal) * 100;
+    const mapaCockpit = window.Tradutor.DICIONARIO.COCKPIT.map;
+    const resumo = { totalOps: trades.length };
+
+    trades.forEach(t => {
+      for (const [colunaOriginal, config] of Object.entries(mapaCockpit)) {
+        const chave = config.key;
+        if (config.type === 'numero' || config.type === 'moeda') {
+          if (resumo[chave] === undefined) resumo[chave] = 0;
+          resumo[chave] += (parseFloat(t[chave]) || 0); // Soma usando a chave curta (ex: t.nocional)
+        }
+      }
+    });
+
+    // Cálculos de proporção (Exceções)
+    if (resumo.nocional > 0) {
+      resumo.plTotalPct = (resumo.plTotalValor / resumo.nocional) * 100;
     }
 
-    return globais;
+    return resumo;
   },
 
   _calcularVencimentos(tradesAtivos) {
@@ -173,6 +205,10 @@ window.Agregador = {
     else if (otmPct >= 50 || poeMedio >= 0.6) statusKey = 'CONTROLADO';
 
     return { 
+        otm: totalOtm, // Adicionado contagem real
+        atm: totalAtm, // Adicionado contagem real
+        itm: totalItm, // Adicionado contagem real
+        total: total,  // Adicionado total        
         otmPct, 
         atmPct: Math.round((totalAtm / total) * 100), 
         itmPct: Math.round((totalItm / total) * 100),

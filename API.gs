@@ -6,6 +6,7 @@
 // ==========================================
 // 1. READ (Leitura Universal de Todo o Banco)
 // ==========================================
+
 function getInitialData() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -278,4 +279,23 @@ function apiSimularHorizontePreditivo(diasParam) {
       error: error.message 
     };
   }
+}
+
+/**
+ * 🛡️ BUSCA DE PLANILHA DINÂMICA
+ * Encontra a aba independentemente de como foi digitada
+ */
+function getPlanilhaDinamica(planilhaAtiva, nomeProcurado) {
+  const abas = planilhaAtiva.getSheets();
+  const abaEncontrada = abas.find(aba => 
+    aba.getName().toUpperCase() === String(nomeProcurado).toUpperCase()
+  );
+  return abaEncontrada || null;
+}
+
+function getAbaDinamica(payloadRaw, nomeProcurado) {
+  const chaveReal = Object.keys(payloadRaw).find(k => 
+    String(k).toUpperCase() === String(nomeProcurado).toUpperCase()
+  );
+  return chaveReal ? payloadRaw[chaveReal] : null;
 }

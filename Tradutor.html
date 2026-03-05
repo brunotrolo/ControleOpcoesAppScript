@@ -23,22 +23,21 @@ window.Tradutor = {
         'STRIKE': { key: 'strike', type: 'moeda' },
         'TICKER SPOT': { key: 'spotPrice', type: 'moeda' },
         'MONEYNESS_CODE': { key: 'moneynessCode', type: 'texto' },
-        'PRÊMIO (PM)': { key: 'premioMedioEntrada', type: 'moeda' },
+        'PRÊMIO (PM)': { key: 'premioMedio', type: 'moeda' },
         'PRÊMIO ATUAL': { key: 'premioAtual', type: 'moeda' },
         'GANHO MÁXIMO': { key: 'ganhoMaximo', type: 'moeda' },
         'LUCRO MAX': { key: 'potencialLucroPct', type: 'percentual' },
         'PERDA MÁXIMA': { key: 'perdaMaxima', type: 'moeda' },
-        //'NOCIONAL': { key: 'nocional', type: 'moeda' },
-        'NOCIONAL': { key: 'nocionalTotal', type: 'moeda' },
+        'NOCIONAL': { key: 'nocional', type: 'moeda' },
         'P/L TOTAL %': { key: 'plTotalPct', type: 'percentual' },
-        'P/L TOTAL': { key: 'plTotalValor', type: 'moeda' },
-        'P/L ATUAL': { key: 'plSessaoValor', type: 'moeda' },
+        'P/L TOTAL': { key: 'plTotalUnitario', type: 'moeda' },
+        'P/L ATUAL': { key: 'plTotalValor', type: 'moeda' },
         'BREAK-EVEN': { key: 'breakEven', type: 'moeda' },
         'DTE CORRIDOS': { key: 'dteCorridos', type: 'numero' },
         'DTE UTEIS': { key: 'dteUteis', type: 'numero' },
         'IV_CURRENT': { key: 'ivAtual', type: 'numero' },
-        'IV_1Y_RANK': { key: 'ivRank', type: 'percentual' }, // Sanitizador deve tratar 87,9 -> 0.87
-        'VARIATION': { key: 'variacaoAtivo', type: 'percentual' }, // Sanitizador deve tratar -6,06 -> -0.06
+        'IV_1Y_RANK': { key: 'ivRank', type: 'percentual' },
+        'VARIATION': { key: 'variacaoAtivo', type: 'percentual' },
         'MONEYNESS': { key: 'moneynessNum', type: 'numero' },
         'PRICE': { key: 'ultimoPrecoOpcao', type: 'moeda' },
         'DELTA': { key: 'delta', type: 'numero' },
@@ -202,6 +201,7 @@ window.Tradutor = {
         return { resumoGerencial: { timestamp: 'ERRO' } };
     }
     
+    
     // Função inteligente: acha a aba seja em MAIÚSCULO ou minúsculo
     const getAba = (nome) => {
         const chave = Object.keys(rawPayload).find(k => String(k).toUpperCase() === String(nome).toUpperCase());
@@ -216,7 +216,7 @@ window.Tradutor = {
       dadosDetalhes: this.processar(getAba('DADOS_DETALHES'), 'DADOS_DETALHES'),
       calcGreeks: this.processar(getAba('CALC_GREEKS'), 'CALC_GREEKS'),
       historico250d: this.processar(getAba('DADOS_ATIVOS_HISTORICO250D'), 'DADOS_ATIVOS_HISTORICO250D'),
-      resumoGerencial: { timestamp: new Date().toLocaleTimeString() }
+      resumoGerencial: { timestamp: new Date().toLocaleString('pt-BR') }
     };
   },
 
@@ -258,7 +258,9 @@ window.Tradutor = {
       
       // Cruza o mapa do Dicionário com os índices do Cabeçalho
       for (const [colunaOrig, regras] of Object.entries(config.map)) {
-        const idx = cabecalhos.indexOf(colunaOrig);
+        // CORREÇÃO: Transforma a chave do dicionário em maiúsculo também!
+        const idx = cabecalhos.indexOf(String(colunaOrig).toUpperCase().trim());
+        
         if (idx !== -1) {
             objetoRow[regras.key] = this._sanitizarDado(row[idx], regras.type);
         } else if (regras.fallback !== undefined) {

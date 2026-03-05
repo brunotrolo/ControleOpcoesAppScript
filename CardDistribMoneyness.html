@@ -109,51 +109,75 @@
 <script>
 window.CardDistribMoneyness = {
   props: {
-    operations: { type: Array, default: () => [] },
-    isLoading: Boolean, isMobile: Boolean
+    statsPreCalculados: Object,
+    isLoading: Boolean, 
+    isMobile: Boolean
   },
   template: '#card-distrib-moneyness-template',
   computed: {
     displayStats() {
-      const res = { otm: 0, atm: 0, itm: 0, otmPct: 0, atmPct: 0, itmPct: 0, total: 0 };
-      if (!this.operations?.length) return res;
-      this.operations.forEach(op => {
-        const val = String(op['MONEYNESS_CODE'] || op['MONEYNESS'] || '').toUpperCase().trim();
-        if (val.includes('OTM')) res.otm++;
-        else if (val.includes('ITM')) res.itm++;
-        else res.atm++;
-      });
-      res.total = res.otm + res.atm + res.itm;
-      if (res.total > 0) {
-        res.otmPct = Math.round((res.otm / res.total) * 100);
-        res.atmPct = Math.round((res.atm / res.total) * 100);
-        res.itmPct = Math.round((res.itm / res.total) * 100);
+      // Busca a gaveta exata dentro do cubo pre-calculado
+      const stats = this.statsPreCalculados?.moneynessStats;
+      
+      // Se não houver dados, retorna o padrão "Aguardando"
+      if (!stats || stats.total === 0) {
+        return { otm: 0, atm: 0, itm: 0, otmPct: 0, atmPct: 0, itmPct: 0, total: 0 };
       }
-      return res;
+      
+      return stats;
     },
     statusProtecao() {
-      const otm = this.displayStats.otmPct;
-      // Adicionadas propriedades Clean/bgClass/textClass para o Mobile, mantendo as originais para o Desktop
-      if (this.displayStats.total === 0) return { label: '⏳ AGUARDANDO', labelClean: 'Aguardando', class: 'bg-slate-50 text-slate-400 border-slate-200', bgClass: 'bg-slate-300', textClass: 'text-slate-500' };
-      if (otm >= 80) return { label: '🛡️ PORTFÓLIO BLINDADO', labelClean: 'Protegido', class: 'bg-emerald-50 text-emerald-700 border-emerald-200', bgClass: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]', textClass: 'text-emerald-600' };
-      if (otm >= 40) return { label: '✅ RISCO CONTROLADO', labelClean: 'Risco Controlado', class: 'bg-blue-50 text-blue-700 border-blue-200', bgClass: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]', textClass: 'text-blue-600' };
-      return { label: '🚨 ALERTA DE EXERCÍCIO', labelClean: 'Atenção ao Risco', class: 'bg-red-50 text-red-700 border-red-200 animate-pulse', bgClass: 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]', textClass: 'text-red-600 animate-pulse' };
+      const stats = this.displayStats;
+      const key = stats.statusKey || 'ALERTA';
+      
+      const config = {
+        'BLINDADO': { 
+          label: 'PORTFOLIO BLINDADO', labelClean: 'Protegido', 
+          class: 'bg-emerald-50 text-emerald-700 border-emerald-200', 
+          bgClass: 'bg-emerald-500 shadow-md', 
+          textClass: 'text-emerald-600' 
+        },
+        'CONTROLADO': { 
+          label: 'RISCO CONTROLADO', labelClean: 'Risco Controlado', 
+          class: 'bg-blue-50 text-blue-700 border-blue-200', 
+          bgClass: 'bg-blue-500 shadow-md', 
+          textClass: 'text-blue-600' 
+        },
+        'ALERTA': { 
+          label: 'ALERTA DE EXERCICIO', labelClean: 'Atencao ao Risco', 
+          class: 'bg-red-50 text-red-700 border-red-200 animate-pulse', 
+          bgClass: 'bg-red-500 animate-pulse', 
+          textClass: 'text-red-600 animate-pulse' 
+        }
+      };
+
+      if (!stats || stats.total === 0) {
+        return { label: 'AGUARDANDO', labelClean: 'Aguardando', class: 'bg-slate-50 text-slate-400 border-slate-200', bgClass: 'bg-slate-300', textClass: 'text-slate-500' };
+      }
+      
+      return config[key] || config['ALERTA'];
     }
   },
   methods: {
     getBoxClass(type) {
-      const map = { otm: 'bg-emerald-50/50 border-emerald-100 text-emerald-800', atm: 'bg-amber-50/50 border-amber-100 text-amber-800', itm: 'bg-red-50/50 border-red-100 text-red-800' };
+      const map = { 
+        otm: 'bg-emerald-50/50 border-emerald-100 text-emerald-800', 
+        atm: 'bg-amber-50/50 border-amber-100 text-amber-800', 
+        itm: 'bg-red-50/50 border-red-100 text-red-800' 
+      };
       return map[type];
     },
     getBoxLabel(type) {
       const map = { otm: 'Seguro', atm: 'Alerta', itm: 'Risco' };
       return map[type];
     },
-    // Método exclusivo para dar vida ao texto herói no Mobile
     getHeroTextColor(type) {
       const map = { otm: 'text-emerald-500', atm: 'text-amber-400', itm: 'text-red-500' };
       return map[type];
     }
+  },
+  mounted() {
+    console.log("Card Moneyness montado.");
   }
 };
 </script>

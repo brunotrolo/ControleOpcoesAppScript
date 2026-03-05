@@ -47,7 +47,6 @@ function onOpen(e) {
 
 
 /**
- * NEXO VOICE - BOILERPLATE DE ENTRADA
  * Homologação de Carregamento de Arquivos
  */
 

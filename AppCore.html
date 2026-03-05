@@ -3,14 +3,14 @@
 // APPCORE - MAESTRO V5 (NÚCLEO DE ORQUESTRAÇÃO, ESTADO E UI)
 // ============================================================================
 
-const { createApp, ref, computed, onMounted, provide } = Vue;
+const { createApp, ref, shallowRef, computed, onMounted, provide } = Vue;
 
 const app = createApp({
     setup() {
         // ====================================================================
         // 1. ESTADO GLOBAL REATIVO (Single Source of Truth)
         // ====================================================================
-        const db = ref({ cockpit: [], resumoGerencial: { timestamp: '--:--' }, configGlobal: {}, dadosAtivos: [], necton: [], calcGreeks: [], historico250d: [] }); 
+        const db = shallowRef({ cockpit: [], resumoGerencial: { timestamp: '--:--' }, configGlobal: {}, dadosAtivos: [], necton: [], calcGreeks: [], historico250d: [] }); 
         const cuboOlap = ref(window.Agregador ? window.Agregador._gerarCuboVazio() : {});
 
         const isLoading = ref(true);
@@ -121,10 +121,14 @@ const app = createApp({
         // ====================================================================
         const timerVisual = ref(300); // 5 minutos padrão
         const isOrquestrando = ref(false);
-        const isAutoSyncEnabled = ref(true);
+        const isAutoSyncEnabled = ref(false);
+        let pollingInterval = null;
 
         const toggleAutoSync = () => {
             isAutoSyncEnabled.value = !isAutoSyncEnabled.value;
+            if (isAutoSyncEnabled.value) {
+                timerVisual.value = 300; // Reinicia o relógio aos 5 min sempre que ligar
+            }
         };
 
         const formatCountdown = computed(() => {
@@ -132,6 +136,24 @@ const app = createApp({
             const s = (timerVisual.value % 60).toString().padStart(2, '0');
             return `${m}:${s}`;
         });
+
+        // O Coração do Smart Polling
+        const iniciarMotorRelogio = () => {
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = setInterval(() => {
+                // Só diminui o tempo se estiver LIGADO e NÃO estiver carregando dados
+                if (isAutoSyncEnabled.value && !isLoading.value) {
+                    if (timerVisual.value > 0) {
+                        timerVisual.value--;
+                    } else {
+                        timerVisual.value = 300; // Reseta para 5 minutos
+                        sincronizarDashboard();  // Dispara a atualização real!
+                    }
+                }
+            }, 1000);
+        };
+
+
 
         const dispararErro = (msg) => {
             console.error("[APP_CORE] " + msg);
@@ -156,7 +178,7 @@ const app = createApp({
         
         const sincronizarDashboard = () => {
             isLoading.value = true;
-            status.value = "Conectando ao Google Cloud...";
+            status.value = "Sincronizando...";
             // Atualiza Telemetria (Se o painel existir)
             const st = document.getElementById('debug-status');
             if(st) st.innerText = "Chamando API...";
@@ -206,6 +228,7 @@ const app = createApp({
                     'cockpit-table':    { data: db.value.cockpit || [] },
                     
                     // Cards Analíticos (Usam a lista filtrada de Ativas do Agregador)
+                    'card-distrib-moneyness': { operations: cuboOlap.value.listaAtivas || [] },
                     'card-vencimentos': { operations: cuboOlap.value.listaAtivas || [] },
                     'card-moneyness':   { operations: cuboOlap.value.listaAtivas || [] },
                     'card-resultado':   { operations: cuboOlap.value.listaAtivas || [], statsPreCalculados: cuboOlap.value },
@@ -242,6 +265,9 @@ const app = createApp({
 
             // Dispara a primeira carga de dados
             sincronizarDashboard();
+
+            // Liga a engrenagem do relógio
+            iniciarMotorRelogio();            
             
             // Ativa o Lucide Icons se disponível
             if(window.lucide) window.lucide.createIcons();
@@ -285,7 +311,7 @@ const app = createApp({
 
             // --- CONFIGURAÇÕES TÉCNICAS E PROTEÇÃO ---
             // 🛡️ PROTEÇÃO: Fallback caso o objeto global não exista (Note: 'sequence' foi removido no novo trecho)
-            // MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {}, sequence: [] }
+            //MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {}, sequence: [] }
             MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {} }
         };
     } // Fim do setup()
@@ -297,6 +323,7 @@ const app = createApp({
 const COMPONENTES_V5 = [
   ['menu-sidebar', window.MenuSidebar],
   ['card-summary', window.CardSummary],
+  ['card-distrib-moneyness', window.CardDistribMoneyness],
   ['card-vencimentos', window.CardVencimentos],
   ['card-concentracao', window.CardConcentracao],
   ['card-moneyness', window.CardMoneyness],

@@ -63,7 +63,7 @@
             </div>
             <div class="text-right">
                <p class="text-[10px] font-black text-brand-indigo font-mono">
-                 {{ formatCell(getGroupSum(rows, 'P/L TOTAL'), 'currency') }}
+                 {{ formatCell(getGroupSum(rows, 'plTotalValor'), 'currency') }}
                </p>
             </div>
           </div>
@@ -73,22 +73,22 @@
                  class="p-4 border-b border-slate-50 last:border-0 flex justify-between items-center active:bg-slate-50 transition-colors">
               <div class="flex flex-col space-y-1">
                 <div class="flex items-center space-x-2">
-                  <span class="text-xs font-black text-slate-900">{{ row['TICKER'] }}</span>
-                  <span :class="getCellClass(row['MONEYNESS_CODE'], 'text', 'MONEYNESS_CODE')" class="text-[8px]">
-                    {{ row['MONEYNESS_CODE'] }}
+                  <span class="text-xs font-black text-slate-900">{{ row.tickerAtivo }}</span>
+                  <span :class="getCellClass(row.moneynessCode, 'text', 'MONEYNESS_CODE')" class="text-[8px]">
+                    {{ row.moneynessCode }}
                   </span>
                 </div>
                 <div class="flex items-center space-x-2 text-[10px]">
-                  <span class="text-slate-500 font-bold uppercase">{{ row['CÓDIGO OPÇÃO'] }}</span>
-                  <span class="text-slate-400 font-mono">{{ formatCell(row['VENCIMENTO'], 'date') }}</span>
+                  <span class="text-slate-500 font-bold uppercase">{{ row.simboloOpcao }}</span>
+                  <span class="text-slate-400 font-mono">{{ formatCell(row.dataVencimento, 'date') }}</span>
                 </div>
               </div>
               <div class="text-right">
-                <p :class="getCellClass(row['P/L TOTAL %'], 'percentage', 'P/L TOTAL %')" class="text-[11px] font-black font-mono">
-                  {{ formatCell(row['P/L TOTAL %'], 'percentage') }}
+                <p :class="getCellClass(row.plTotalPct, 'percentage', 'P/L TOTAL %')" class="text-[11px] font-black font-mono">
+                  {{ formatCell(row.plTotalPct, 'percentage') }}
                 </p>
                 <p class="text-[9px] text-slate-400 font-bold font-mono">
-                  {{ formatCell(row['P/L TOTAL'], 'currency') }}
+                  {{ formatCell(row.plTotalValor, 'currency') }}
                 </p>
               </div>
             </div>
@@ -128,15 +128,15 @@ window.CockpitTable = {
   computed: {
     filteredAndSortedData() {
       if (!this.data?.length) return [];
-      const headers = Object.keys(this.data[0]);
-      const statusKey = headers.find(h => h.toUpperCase().includes('STATUS')) || 'STATUS';
-      let filtered = this.data.filter(item => String(item[statusKey]).trim().toUpperCase() === 'ATIVO');
-      return filtered.sort((a, b) => this.parseDate(a.VENCIMENTO) - this.parseDate(b.VENCIMENTO));
+      // Usa a nova chave 'status' e 'dataVencimento'
+      let filtered = this.data.filter(item => String(item.status || '').trim().toUpperCase() === 'ATIVO');
+      return filtered.sort((a, b) => this.parseDate(a.dataVencimento) - this.parseDate(b.dataVencimento));
     },
 
     groupedData() {
       return this.filteredAndSortedData.reduce((acc, row) => {
-        const group = row['ID ESTRATÉGIA'] || row['ID ESTRATEGIA'] || 'SEM ESTRATÉGIA';
+        // Usa a nova chave 'estrategiaId'
+        const group = row.estrategiaId || 'SEM ESTRATÉGIA';
         if (!acc[group]) acc[group] = [];
         acc[group].push(row);
         return acc;
