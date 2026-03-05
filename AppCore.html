@@ -229,7 +229,7 @@ const app = createApp({
                     
                     // Cards Analíticos (Usam a lista filtrada de Ativas do Agregador)
                     'card-distrib-moneyness': { statsPreCalculados: cuboOlap.value },
-                    'card-vencimentos': { operations: cuboOlap.value.listaAtivas || [] },
+                    'card-vencimentos': { statsPreCalculados: cuboOlap.value },
                     'card-moneyness':   { statsPreCalculados: cuboOlap.value },
                     'card-resultado':   { operations: cuboOlap.value.listaAtivas || [], statsPreCalculados: cuboOlap.value },
                     'card-concentracao':{ operations: cuboOlap.value.listaAtivas || [] },

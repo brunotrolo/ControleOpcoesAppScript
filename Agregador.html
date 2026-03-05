@@ -31,6 +31,7 @@ window.Agregador = {
         moneynessStats: this._calcularMoneyness(tradesComRisco),
         moneynessPorTipo: this._calcularMoneynessPorTipo(tradesComRisco),
         resultadoStats: this._calcularResultados(tradesComRisco),
+        vencimentosDteStats: this._calcularVencimentosDTE(tradesComRisco),
         performanceStats: this._calcularResultados(tradesComRisco)
     };
   },
@@ -260,7 +261,33 @@ window.Agregador = {
     return s;
   },
 
+  _calcularVencimentosDTE(trades) {
+      const padrao = { curto: 0, medio: 0, longo: 0, total: 0, pctCurto: 0, pctMedio: 0, pctLongo: 0 };
+      if (!trades || trades.length === 0) return padrao;
 
+      let curto = 0, medio = 0, longo = 0;
+
+      trades.forEach(t => {
+        // Usa a chave dteCorridos que definimos no Tradutor (ou calcula se não existir)
+        const dte = parseInt(t.dteCorridos, 10);
+        
+        if (!isNaN(dte)) {
+          if (dte <= 15) curto++;
+          else if (dte <= 45) medio++;
+          else longo++;
+        }
+      });
+
+      const total = curto + medio + longo;
+      if (total === 0) return padrao;
+
+      return {
+        curto, medio, longo, total,
+        pctCurto: Math.round((curto / total) * 100),
+        pctMedio: Math.round((medio / total) * 100),
+        pctLongo: Math.round((longo / total) * 100)
+      };
+    },
 
   _enriquecerDados(trades, greeks) {
     if (!greeks || greeks.length === 0) return trades;

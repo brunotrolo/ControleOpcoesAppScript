@@ -98,27 +98,25 @@
   </div>
 </template>
 
-<script>
+<<script>
 window.CardVencimentos = {
-  props: { operations: Array, isMobile: Boolean, isLoading: Boolean },
+  props: { 
+    isMobile: Boolean, 
+    isLoading: Boolean,
+    statsPreCalculados: Object // V5: Recebe o Cubo mastigado
+  },
   template: '#card-vencimentos-template',
   computed: {
     stats() {
-      const s = { curto: 0, medio: 0, longo: 0, pctCurto: 0, pctMedio: 0, pctLongo: 0, total: 0 };
-      if (!this.operations?.length) return s;
-      const hoje = new Date(); hoje.setHours(0,0,0,0);
-      this.operations.forEach(op => {
-        const dStr = String(op['VENCIMENTO'] || '').split(' ')[0];
-        const p = dStr.split('/');
-        if (p.length === 3) {
-          const dte = Math.ceil((new Date(p[2], p[1]-1, p[0]) - hoje) / 86400000);
-          s.total++;
-          if (dte <= 15) s.curto++; else if (dte <= 45) s.medio++; else s.longo++;
-        }
-      });
-      const t = s.total || 1;
-      s.pctCurto = Math.round((s.curto/t)*100); s.pctMedio = Math.round((s.medio/t)*100); s.pctLongo = Math.round((s.longo/t)*100);
-      return s;
+      // 1. Busca a gaveta correta do Cubo
+      const stats = this.statsPreCalculados?.vencimentosDteStats;
+      const padrao = { curto: 0, medio: 0, longo: 0, pctCurto: 0, pctMedio: 0, pctLongo: 0, total: 0 };
+      
+      if (!stats || stats.total === 0) {
+        if (!this.isLoading) console.warn("⚠️ [Vencimentos] Sem dados de DTE no Cubo V5.");
+        return padrao;
+      }
+      return stats;
     },
     statusVencimento() {
       if (this.stats.total === 0) return { labelClean: 'Aguardando', bgClass: 'bg-slate-300', textClass: 'text-slate-500' };
@@ -135,12 +133,16 @@ window.CardVencimentos = {
       if (p === 'Medio') return { container: 'bg-amber-50/50 border-amber-100', text: 'text-amber-800', bar: 'bg-amber-500' };
       return { container: 'bg-emerald-50/50 border-emerald-100', text: 'text-emerald-800', bar: 'bg-emerald-600' };
     },
-    // Estilo Mobile Brutalista
     getPrazoStyleMobile(p) {
       if (p === 'Curto') return { text: 'text-red-600' };
       if (p === 'Medio') return { text: 'text-amber-500' };
       return { text: 'text-emerald-500' };
     }
+  },
+  mounted() {
+    console.groupCollapsed("📊 Sonda: Card Vencimentos (DTE)");
+    console.log("Stats Recebidos:", this.stats);
+    console.groupEnd();
   }
 };
 </script>
