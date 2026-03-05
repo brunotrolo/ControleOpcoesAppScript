@@ -94,7 +94,7 @@
       <div class="bg-slate-50/50 rounded-[24px] p-4 md:p-5 border border-slate-100 flex flex-col justify-between transition-all">
         <div class="flex items-center justify-between mb-3">
           <div class="text-blue-800 font-black text-[9px] md:text-[10px] uppercase tracking-widest">CALL (Alta)</div>
-          <span class="opacity-50 text-xs">📈</span>
+          <span class="opacity-50 text-xs"></span>
         </div>
         <div class="flex-1 flex flex-col justify-center space-y-1">
           <div v-for="m in ['ITM', 'ATM', 'OTM']" :key="m" class="flex justify-between items-center h-7">
@@ -112,7 +112,7 @@
       <div class="bg-slate-50/50 rounded-[24px] p-4 md:p-5 border border-slate-100 flex flex-col justify-between transition-all">
         <div class="flex items-center justify-between mb-3">
           <div class="text-amber-800 font-black text-[9px] md:text-[10px] uppercase tracking-widest">PUT (Baixa)</div>
-          <span class="opacity-50 text-xs">📉</span>
+          <span class="opacity-50 text-xs"></span>
         </div>
         <div class="flex-1 flex flex-col justify-center space-y-1">
           <div v-for="m in ['ITM', 'ATM', 'OTM']" :key="m" class="flex justify-between items-center h-7">
@@ -133,14 +133,25 @@
 
 <script>
 window.CardMoneyness = {
-  props: { operations: Array, isMobile: Boolean, isLoading: Boolean },
+  props: { 
+    isMobile: Boolean, 
+    isLoading: Boolean,
+    statsPreCalculados: Object // V5: Recebe a gaveta mastigada
+  },
   template: '#card-moneyness-template',
+  
   computed: {
-    totalOperacoes() { return this.operations?.length || 0; },
-    callStats() { return this.calcularStatsPorTipo('CALL'); },
-    putStats() { return this.calcularStatsPorTipo('PUT'); },
+    // 1. Aponta para a gaveta certa do Agregador
+    stats() {
+      const padrao = { itm: 0, atm: 0, otm: 0, total: 0 };
+      return this.statsPreCalculados?.moneynessPorTipo || { call: padrao, put: padrao, totalOps: 0 };
+    },
     
-    // Matemática da Barra Bottom Tricolor (Risco Global)
+    totalOperacoes() { return this.stats.totalOps || 0; },
+    callStats() { return this.stats.call; },
+    putStats() { return this.stats.put; },
+    
+    // 2. Matemática da Barra Bottom Tricolor (Risco Global) mantida limpa
     percentOtmGlobal() {
       if (this.totalOperacoes === 0) return 0;
       return Math.round(((this.callStats.otm + this.putStats.otm) / this.totalOperacoes) * 100);
@@ -154,21 +165,9 @@ window.CardMoneyness = {
       return Math.round(((this.callStats.itm + this.putStats.itm) / this.totalOperacoes) * 100);
     }
   },
+  
   methods: {
-    calcularStatsPorTipo(tipoBuscado) {
-      const s = { itm: 0, atm: 0, otm: 0, total: 0 };
-      if (!this.operations?.length) return s;
-      this.operations.forEach(op => {
-        if (String(op['TIPO'] || '').toUpperCase().trim() === tipoBuscado) {
-          s.total++;
-          const m = String(op['MONEYNESS_CODE'] || op['MONEYNESS'] || '').toUpperCase();
-          if (m.includes('ITM')) s.itm++;
-          else if (m.includes('OTM')) s.otm++;
-          else s.atm++;
-        }
-      });
-      return s;
-    },
+    // Métodos visuais mantidos intactos, cálculo pesado foi removido!
     getBadgeClass(val, money) {
       if (val === 0) return 'text-slate-300 border-transparent';
       if (money === 'ITM') return 'text-red-700 bg-red-100/60 font-black border-red-200';
@@ -181,6 +180,12 @@ window.CardMoneyness = {
       if (money === 'ATM') return 'text-amber-500';
       return 'text-emerald-500';
     }
+  },
+  
+  mounted() {
+    console.groupCollapsed("📊 Sonda: Card Moneyness (CALL/PUT)");
+    console.log("Stats Recebidos:", this.stats);
+    console.groupEnd();
   }
 };
 </script>

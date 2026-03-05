@@ -195,7 +195,7 @@ const app = createApp({
                             document.getElementById('debug-trades').innerText = db.value.cockpit.length;
 
                         if(st) st.innerText = "Gerando Cubo OLAP...";
-                        cuboOlap.value = window.Agregador.processarSumario(db.value);
+                        cuboOlap.value = { ...window.Agregador.processarSumario(db.value) };
                         
                         if(document.getElementById('debug-cubo'))
                             document.getElementById('debug-cubo').innerText = cuboOlap.value.meta.status;
@@ -228,9 +228,9 @@ const app = createApp({
                     'cockpit-table':    { data: db.value.cockpit || [] },
                     
                     // Cards Analíticos (Usam a lista filtrada de Ativas do Agregador)
-                    'card-distrib-moneyness': { operations: cuboOlap.value.listaAtivas || [] },
+                    'card-distrib-moneyness': { statsPreCalculados: cuboOlap.value },
                     'card-vencimentos': { operations: cuboOlap.value.listaAtivas || [] },
-                    'card-moneyness':   { operations: cuboOlap.value.listaAtivas || [] },
+                    'card-moneyness':   { statsPreCalculados: cuboOlap.value },
                     'card-resultado':   { operations: cuboOlap.value.listaAtivas || [], statsPreCalculados: cuboOlap.value },
                     'card-concentracao':{ operations: cuboOlap.value.listaAtivas || [] },
                     'carousel-ativas':  { operations: cuboOlap.value.listaAtivas || [] },
@@ -324,10 +324,10 @@ const COMPONENTES_V5 = [
   ['menu-sidebar', window.MenuSidebar],
   ['card-summary', window.CardSummary],
   ['card-distrib-moneyness', window.CardDistribMoneyness],
+  ['card-resultado', window.CardResultado],
   ['card-vencimentos', window.CardVencimentos],
   ['card-concentracao', window.CardConcentracao],
   ['card-moneyness', window.CardMoneyness],
-  ['card-resultado', window.CardResultado],
   ['cockpit-table', window.CockpitTable],
   ['ticker-tape', window.TickerTape],
   ['necton-import', window.NectonImport],

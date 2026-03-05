@@ -29,6 +29,8 @@ window.Agregador = {
         distribuicaoVencimentos: this._calcularVencimentos(tradesComRisco),
         concentracaoRisco: this._calcularConcentracao(tradesComRisco),
         moneynessStats: this._calcularMoneyness(tradesComRisco),
+        moneynessPorTipo: this._calcularMoneynessPorTipo(tradesComRisco),
+        resultadoStats: this._calcularResultados(tradesComRisco),
         performanceStats: this._calcularResultados(tradesComRisco)
     };
   },
@@ -201,6 +203,64 @@ window.Agregador = {
           statusKey: (totalOtm / total) >= 0.8 ? 'BLINDADO' : (totalOtm / total) >= 0.5 ? 'CONTROLADO' : 'ALERTA'
       };
     },
+
+    _calcularResultados(trades) {
+    if (!trades || trades.length === 0) {
+      return { lucro: 0, prejuizo: 0, breakeven: 0, total: 0, pctLucro: 0, pctPrejuizo: 0, pctBreakeven: 0 };
+    }
+
+    let lucro = 0, prejuizo = 0, breakeven = 0;
+
+    trades.forEach(t => {
+      // Usa a chave oficial de P/L que definimos no Tradutor
+      const pl = parseFloat(t.plTotalValor) || 0; 
+      
+      if (pl > 0) lucro++;
+      else if (pl < 0) prejuizo++;
+      else breakeven++;
+    });
+
+    const total = lucro + prejuizo + breakeven;
+
+    return {
+      lucro, prejuizo, breakeven, total,
+      pctLucro: Math.round((lucro / total) * 100),
+      pctPrejuizo: Math.round((prejuizo / total) * 100),
+      pctBreakeven: Math.round((breakeven / total) * 100)
+    };
+  },
+
+  _calcularMoneynessPorTipo(trades) {
+    const padrao = { itm: 0, atm: 0, otm: 0, total: 0 };
+    if (!trades || trades.length === 0) {
+      return { call: { ...padrao }, put: { ...padrao }, totalOps: 0 };
+    }
+
+    const s = { 
+      call: { ...padrao }, 
+      put: { ...padrao },
+      totalOps: trades.length
+    };
+
+    trades.forEach(t => {
+      // Usa as chaves oficiais do Tradutor V5
+      const tipo = String(t.tipoOpcao || '').toUpperCase().trim();
+      const money = String(t.moneynessCode || t.moneyness || '').toUpperCase();
+      
+      const alvo = tipo.includes('CALL') ? s.call : (tipo.includes('PUT') ? s.put : null);
+      
+      if (alvo) {
+        alvo.total++;
+        if (money.includes('ITM')) alvo.itm++;
+        else if (money.includes('OTM')) alvo.otm++;
+        else alvo.atm++;
+      }
+    });
+
+    return s;
+  },
+
+
 
   _enriquecerDados(trades, greeks) {
     if (!greeks || greeks.length === 0) return trades;
