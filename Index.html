@@ -21,6 +21,16 @@
 
       <body class="bg-[var(--app-bg)] text-[var(--m3-on-surface)] font-sans antialiased overflow-hidden">
 
+        <div id="debug-panel" style="position:fixed; bottom:10px; right:10px; z-index:9999; background:rgba(0,0,0,0.8); color:#00ff00; padding:10px; font-family:monospace; font-size:10px; border-radius:8px; border:1px solid #00ff00; max-width:250px;">
+          <div><strong>🛰️ TELEMETRIA V5</strong></div>
+          <hr style="border-color:#333">
+          <div>Status: <span id="debug-status">Aguardando...</span></div>
+          <div>Loading: <span id="debug-loading">?</span></div>
+          <div>Trades no DB: <span id="debug-trades">0</span></div>
+          <div>Cubo Status: <span id="debug-cubo">?</span></div>
+          <div id="debug-error" style="color:#ff4444; margin-top:5px; display:none;"></div>
+        </div>
+
       <div id="app" v-cloak class="flex h-screen w-screen overflow-hidden">
         
         <menu-sidebar 
@@ -41,9 +51,9 @@
                 <div>
                   <h2 class="text-2xl md:text-3xl font-bold text-[var(--m3-on-surface)] uppercase tracking-wider">{{ currentMenuLabel }}</h2>
                   <p class="text-[var(--m3-on-surface-variant)] text-xs md:text-sm flex flex-wrap items-center gap-2 md:gap-3 mt-1">
-                    <span>Atualizado: {{ db.resumoGerencial.timestamp || '--:--' }}</span>
+                    <span>Atualizado: {{ db.resumoGerencial?.timestamp || '--:--' }}</span>
                     <span v-if="!isOrquestrando && isAutoSyncEnabled" class="px-2 py-0.5 bg-slate-100 rounded text-[9px] md:text-[10px] font-mono font-bold text-slate-500 border border-slate-200">
-                      PRÓXIMA ATUALIZAÇÃO EM: {{ formatCountdown(timerVisual) }}
+                      PRÓXIMA ATUALIZAÇÃO EM: {{ formatCountdown }}
                     </span>
                     <span v-else-if="isOrquestrando" class="px-2 py-0.5 bg-indigo-50 rounded text-[9px] md:text-[10px] font-black uppercase tracking-widest text-brand-indigo border border-indigo-100 animate-pulse">
                       ⚙️ SINCRONIZANDO...

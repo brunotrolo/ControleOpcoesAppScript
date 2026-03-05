@@ -196,19 +196,27 @@ window.Tradutor = {
    * Recebe o payload bruto da API e despacha cada aba para o seu "Namespace"
    */
   processarBancoCompleto(rawPayload) {
+
     if (!rawPayload) {
         console.error("[TRADUTOR] Erro: Payload vazio recebido da API.");
-        return {};
+        return { resumoGerencial: { timestamp: 'ERRO' } };
     }
     
+    // Função inteligente: acha a aba seja em MAIÚSCULO ou minúsculo
+    const getAba = (nome) => {
+        const chave = Object.keys(rawPayload).find(k => String(k).toUpperCase() === String(nome).toUpperCase());
+        return chave ? rawPayload[chave] : [];
+    };
+
     return {
-      cockpit: this.processar(rawPayload.cockpit || [], 'COCKPIT'),
-      configGlobal: this.processar(rawPayload.config_global || [], 'CONFIG_GLOBAL'),
-      necton: this.processar(rawPayload.necton_import || [], 'NECTON_IMPORT'),
-      dadosAtivos: this.processar(rawPayload.dados_ativos || [], 'DADOS_ATIVOS'),
-      dadosDetalhes: this.processar(rawPayload.dados_detalhes || [], 'DADOS_DETALHES'),
-      calcGreeks: this.processar(rawPayload.calc_greeks || [], 'CALC_GREEKS'),
-      historico250d: this.processar(rawPayload.dados_ativos_historico250d || [], 'DADOS_ATIVOS_HISTORICO250D')
+      cockpit: this.processar(getAba('COCKPIT'), 'COCKPIT'),
+      configGlobal: this.processar(getAba('CONFIG_GLOBAL'), 'CONFIG_GLOBAL'),
+      necton: this.processar(getAba('NECTON_IMPORT'), 'NECTON_IMPORT'),
+      dadosAtivos: this.processar(getAba('DADOS_ATIVOS'), 'DADOS_ATIVOS'),
+      dadosDetalhes: this.processar(getAba('DADOS_DETALHES'), 'DADOS_DETALHES'),
+      calcGreeks: this.processar(getAba('CALC_GREEKS'), 'CALC_GREEKS'),
+      historico250d: this.processar(getAba('DADOS_ATIVOS_HISTORICO250D'), 'DADOS_ATIVOS_HISTORICO250D'),
+      resumoGerencial: { timestamp: new Date().toLocaleTimeString() }
     };
   },
 

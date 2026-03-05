@@ -23,19 +23,51 @@ const app = createApp({
         // 2. CHASSI ORIGINAL: ROTEAMENTO E MENU
         // ====================================================================
         const currentView = ref('cockpit'); 
-        const isCollapsed = ref(true); 
+        const isCollapsed = ref(true);
+
+        // 1. Lê o Menu Oficial do arquivo LayoutConfig
+        const menu = ref(window.APP_MENU || []);  
         
+        const currentMenuLabel = computed(() => {
+            const item = menu.value.find(m => String(m.id).toLowerCase() === String(currentView.value).toLowerCase());
+            return item ? item.label : 'Dashboard';
+        });
+        
+        // 2. O MOTOR DE RENDERIZAÇÃO: Pega o layout da tela atual (Imune a Maiúsculas)
+        const currentLayout = computed(() => {
+            if (window.LAYOUT_MAP) {
+                // Força a comparação em minúsculo para evitar erros de digitação
+                const viewSegura = String(currentView.value).toLowerCase();
+                return window.LAYOUT_MAP[viewSegura] || [];
+            }
+            return [];
+        });
+
         const toggleSidebar = () => { 
             isCollapsed.value = !isCollapsed.value;
-            // Recria os ícones do Lucide após a transição do menu
             setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 310);
         };
 
         const navigate = (viewName) => {
             currentView.value = viewName;
-            if (isMobile.value) isCollapsed.value = true; // Auto-close no mobile
+            if (isMobile.value) isCollapsed.value = true;
+            // Força o Lucide a renderizar ícones na troca de tela
             setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100);
         };
+
+        const dynamicSummaryData = computed(() => {
+              const s = cuboOlap.value || {};
+              const cfg = db.value.configGlobal || {};
+              
+              // Mapeamento exato baseado nos nomes de colunas e métricas calculadas
+              return [
+                { key: 'PL_TOTAL_PCT', label: 'P/L %',    value: s.plPctMedio || 0, type: 'percentage', active: true },
+                { key: 'PL_TOTAL',     label: 'P/L Total', value: s.plTotal || 0,    type: 'currency',   active: true },
+                { key: 'NOCIONAL',     label: 'Nocional',  value: s.nocionalTotal || 0, type: 'currency', active: true },
+                { key: 'THETA',        label: 'Theta',     value: s.thetaTotal || 0,    type: 'currency', active: true },
+                { key: 'IV_CURRENT',   label: 'IV Médio',  value: s.ivMedio || 0,       type: 'percentage', active: true }
+              ];
+            });
 
         // ====================================================================
         // 3. CHASSI ORIGINAL: SENSOR MOBILE E FATIAMENTO
@@ -53,10 +85,42 @@ const app = createApp({
 
         window.addEventListener('resize', handleResize);
 
-        // Simulando as variáveis de layout fatiado que seu Index.html espera
-        const topGridComponents = computed(() => isMobile.value ? ['card-summary', 'card-vencimentos'] : []);
-        const mobileCarouselComponents = computed(() => isMobile.value ? ['carousel-ativas'] : []);
-        const bottomGridComponents = computed(() => isMobile.value ? ['card-concentracao'] : []);
+        // Distribui os componentes do LAYOUT_MAP para os grids do Index.html
+        const topGridComponents = computed(() => {
+            if (isMobile.value) {
+                // No Mobile, pega tudo que vem ANTES do que está no carrossel
+                const sequenceIds = (window.MOBILE_ORCHESTRATOR_CONFIG?.sequence || []).map(s => s.id);
+                const firstCarouselIdx = currentLayout.value.findIndex(c => sequenceIds.includes(c.id));
+                return firstCarouselIdx === -1 ? currentLayout.value : currentLayout.value.slice(0, firstCarouselIdx);
+            }
+            return currentLayout.value; // No Desktop, exibe tudo no grid superior
+        });
+
+        const mobileCarouselComponents = computed(() => {
+            if (!isMobile.value) return [];
+            const sequenceIds = (window.MOBILE_ORCHESTRATOR_CONFIG?.sequence || []).map(s => s.id);
+            return currentLayout.value.filter(c => sequenceIds.includes(c.id));
+        });
+
+        const bottomGridComponents = computed(() => {
+            if (!isMobile.value) return [];
+            const sequenceIds = (window.MOBILE_ORCHESTRATOR_CONFIG?.sequence || []).map(s => s.id);
+            const firstCarouselIdx = currentLayout.value.findIndex(c => sequenceIds.includes(c.id));
+            if (firstCarouselIdx === -1) return [];
+            return currentLayout.value.slice(firstCarouselIdx).filter(c => !sequenceIds.includes(c.id));
+        });
+
+
+
+
+
+
+
+
+
+
+
+
 
         const getMobileLayoutZones = computed(() => {
             if (window.LayoutConfig && window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG) {
@@ -92,96 +156,86 @@ const app = createApp({
         // ====================================================================
         // 5. MOTOR DE SINCRONIZAÇÃO E PIPELINE ETL (V5)
         // ====================================================================
-        const sincronizarDashboard = () => {
-            isLoading.value = true;
-            hasError.value = false;
-            status.value = "Conectando ao Google Cloud...";
-            
-            google.script.run
-                .withSuccessHandler((response) => {
-                    if (!response || !response.success) {
-                        handleFailure("Resposta da API inválida ou sem sucesso.");
-                        return;
-                    }
-
-                    try {
-                        status.value = "Harmonizando dados...";
-                        // PASSO A: Camada Semântica (TRADUTOR)
-                        const bancoTraduzido = window.Tradutor.processarBancoCompleto(response.raw);
-                        db.value = bancoTraduzido;
-
-                        status.value = "Calculando métricas OLAP...";
-                        // PASSO B: Camada Analítica (AGREGADOR)
-                        const stats = window.Agregador.processarSumario(db.value);
-                        cuboOlap.value = stats;
-
-                        // Finalização
-                        lastSync.value = new Date().toLocaleTimeString();
-                        status.value = "Dashboard Atualizado";
-                        isLoading.value = false;
-                        
-                    } catch (err) {
-                        console.error("FALHA CRÍTICA NO PIPELINE V5:", err);
-                        handleFailure("Erro no processamento de dados: " + err.message);
-                    }
-                })
-                .withFailureHandler((err) => handleFailure(err))
-                .getInitialData(); // Rota Master no API.gs
-        };
-
+        
         const handleFailure = (err) => {
             console.error("Erro na Sincronização:", err);
             hasError.value = true;
             errorMessage.value = String(err);
             isLoading.value = false;
             status.value = "Falha na Sincronização";
+            const st = document.getElementById('debug-status');
+            if(st) st.innerText = "Erro: " + err;
+        };       
+        
+        const sincronizarDashboard = () => {
+            isLoading.value = true;
+            status.value = "Conectando ao Google Cloud...";
+            // Atualiza Telemetria (Se o painel existir)
+            const st = document.getElementById('debug-status');
+            if(st) st.innerText = "Chamando API...";
+            
+            google.script.run
+                .withSuccessHandler((response) => {
+                    if (!response || !response.success) return handleFailure("Falha na API");
+                    try {
+                        if(st) st.innerText = "Dados Recebidos. Traduzindo...";
+                        db.value = window.Tradutor.processarBancoCompleto(response.raw);
+                        
+                        // Atualiza Telemetria
+                        if(document.getElementById('debug-trades')) 
+                            document.getElementById('debug-trades').innerText = db.value.cockpit.length;
+
+                        if(st) st.innerText = "Gerando Cubo OLAP...";
+                        cuboOlap.value = window.Agregador.processarSumario(db.value);
+                        
+                        if(document.getElementById('debug-cubo'))
+                            document.getElementById('debug-cubo').innerText = cuboOlap.value.meta.status;
+
+                        lastSync.value = new Date().toLocaleTimeString();
+                        status.value = "Online";
+                        isLoading.value = false;
+                        if(st) st.innerText = "Sistema Nominal";
+                    } catch (err) { handleFailure(err.message); }
+                })
+                .withFailureHandler((err) => handleFailure(err))
+                .getInitialData();
         };
 
         // ====================================================================
         // 6. O DISPENSADOR DE PROPS (Dependency Injection V5)
         // ====================================================================
-        const getComponentProps = (componentName) => {
-            // Fallback absoluto para Loading ou Erro
-            if (isLoading.value || !db.value) {
-                return { 
-                    isLoading: true, 
-                    trades: [], 
-                    stats: {}, 
-                    statsPreCalculados: window.Agregador ? window.Agregador._gerarCuboVazio() : {} 
-                };
-            }
-
+        const getComponentProps = (compConfig) => {
             const baseProps = { 
-                isLoading: false, 
-                lastSync: lastSync.value,
-                configGlobais: db.value.configGlobal || {}
-            };
+                    isMobile: isMobile.value,
+                    isLoading: isLoading.value,
+                    lastSync: lastSync.value,
+                    configGlobais: db.value.configGlobal || {},
+                    ...compConfig.props 
+                  };
 
-            switch (componentName) {
-                case 'CardSummary':
-                    return { ...baseProps, statsPreCalculados: cuboOlap.value };
-                case 'CockpitTable':
-                    return { ...baseProps, trades: db.value.cockpit, resumoGlobal: cuboOlap.value.resumoGlobal };
-                case 'CardVencimentos':
-                    return { ...baseProps, distribuicao: cuboOlap.value.distribuicaoVencimentos };
-                case 'CardConcentracao':
-                    return { ...baseProps, concentracao: cuboOlap.value.concentracaoRisco };
-                case 'CardMoneyness':
-                    return { ...baseProps, stats: cuboOlap.value.moneynessStats };
-                case 'CardResultado':
-                    return { ...baseProps, stats: cuboOlap.value.performanceStats };
-                case 'TickerTape':
-                    return { ...baseProps, ativos: db.value.dadosAtivos };
-                case 'ConsultoriaView':
-                    return { 
-                        ...baseProps, 
-                        trades: db.value.cockpit, 
-                        cuboOlap: cuboOlap.value, 
-                        historico: db.value.historico250d 
-                    };
-                default:
-                    return baseProps;
-            }
+            const customProps = {
+                    'ticker-tape':      { ativos: db.value.dadosAtivos || [] },
+                    'card-summary':     { summaryData: dynamicSummaryData.value, statsPreCalculados: cuboOlap.value },
+                    'cockpit-table':    { data: db.value.cockpit || [] },
+                    
+                    // Cards Analíticos (Usam a lista filtrada de Ativas do Agregador)
+                    'card-vencimentos': { operations: cuboOlap.value.listaAtivas || [] },
+                    'card-moneyness':   { operations: cuboOlap.value.listaAtivas || [] },
+                    'card-resultado':   { operations: cuboOlap.value.listaAtivas || [], statsPreCalculados: cuboOlap.value },
+                    'card-concentracao':{ operations: cuboOlap.value.listaAtivas || [] },
+                    'carousel-ativas':  { operations: cuboOlap.value.listaAtivas || [] },
+                    
+                    // Telas de Visão Geral e Ferramentas
+                    'consultoria-view': { operations: cuboOlap.value.listaAtivas || [], historico: db.value.historico250d || [] },
+                    'necton-import':    { data: db.value.necton || [] },
+                    'gestao-ativos':    { ativos: db.value.dadosAtivos || [] },
+                    'settings-view':    { configGlobais: db.value.configGlobal || {} },
+                    'scanner-view':     { scannerData: db.value.scannerOportunidades || [] },
+                    'comparativo-view': { db: db.value }, // Envia o banco completo para comparação
+                    'bancodedados-view':{ db: db.value }
+                  };
+
+            return { ...baseProps, ...(customProps[compConfig.component] || {}) };
         };
 
         // Opcional para Vue 3 puro: injeta a função globalmente na árvore DOM
@@ -209,20 +263,32 @@ const app = createApp({
         // ====================================================================
         // 8. EXPOSIÇÃO PARA O TEMPLATE (Binding Final)
         // ====================================================================
-        return {
-            // Motor de Dados V5
-            db, cuboOlap, isLoading, hasError, errorMessage, lastSync, status,
-            sincronizarDashboard, getComponentProps, getMobileLayoutZones, formatCountdown,
+        
+        // Aliases solicitados pela UI
+        const handleRefresh = () => sincronizarDashboard();
+        const MOBILE_ORCHESTRATOR_CONFIG = computed(() => {
+            if (window.LayoutConfig && window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG) {
+                return window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG;
+            }
+            return { settings: {} }; // 🛡️ Protege o Vue contra o erro "reading 'settings'"
+        });        
 
-            // Chassi de UI e Roteamento
-            currentView, navigate, isCollapsed, toggleSidebar,
-            isMobile, topGridComponents, mobileCarouselComponents, bottomGridComponents,
+        return {
+            // Estado e Dados
+            db, cuboOlap, isLoading, hasError, errorMessage, lastSync, status,
             
-            // Polling e Automação
-            timerVisual,  
-            currentMenuLabel: computed(() => db.value.configGlobal?.uiLabelTitulo || 'Dashboard'), // Adicione esta linha
-            menu: ref([]), // Adicione esta linha (vazia por enquanto para não crashar)
-            isOrquestrando, isAutoSyncEnabled, toggleAutoSync
+            // Navegação e Layout
+            currentView, navigate, isCollapsed, toggleSidebar, isMobile,
+            menu, currentMenuLabel, currentLayout, dynamicSummaryData,
+            
+            // Componentes e Sincronia
+            getComponentProps, 
+            handleRefresh: sincronizarDashboard,
+            timerVisual, formatCountdown, isAutoSyncEnabled, isOrquestrando, toggleAutoSync,
+            
+            // Suporte Mobile
+            topGridComponents, mobileCarouselComponents, bottomGridComponents, getMobileLayoutZones,
+            MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {} }
         };
     } // Fim do setup()
 }); // Fim do createApp
