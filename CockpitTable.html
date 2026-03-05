@@ -14,56 +14,72 @@
       <div v-if="!isMobile" class="overflow-auto custom-scrollbar" style="max-height: 600px;">
         <table class="w-full text-left border-separate border-spacing-0">
           <thead class="sticky top-0 z-30">
-            <tr class="bg-white/80 backdrop-blur-md">
+            <tr class="bg-white/90 backdrop-blur-md">
               <th v-for="col in columns" :key="col.key" 
-                  class="px-4 py-4 text-[10px] font-bold text-[var(--m3-on-surface-variant)] uppercase tracking-[0.2em] border-b border-[var(--app-border)] whitespace-nowrap">
+                  :title="col.desc"
+                  class="px-4 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] border-b border-slate-200 whitespace-nowrap cursor-help hover:text-blue-600 transition-colors">
                 {{ col.label }}
               </th>
             </tr>
           </thead>
 
           <tbody v-for="(rows, groupName) in groupedData" :key="groupName">
-            <tr @click="toggleGroup(groupName)" 
-                class="bg-[var(--m3-primary)]/5 cursor-pointer hover:bg-[var(--m3-primary)]/10 transition-colors">
-              <td v-for="(col, index) in columns" :key="'sum-'+index" 
-                  class="px-4 py-4 text-[13px] font-black border-b border-[var(--app-border)] whitespace-nowrap">
-                <div v-if="index === 0" class="flex items-center text-[var(--m3-primary)] uppercase tracking-widest">
+            <tr @click="toggleGroup(groupName)" class="bg-blue-50/50 cursor-pointer hover:bg-blue-50 transition-colors">
+              <td v-for="(col, index) in columns" :key="'sum-'+index" class="px-4 py-3 text-[13px] font-black border-b border-blue-100 whitespace-nowrap">
+                <div v-if="index === 0" class="flex items-center text-blue-800 uppercase tracking-widest">
                   <span class="mr-2 transform transition-transform" :class="{'rotate-90': isExpanded(groupName)}">▶</span>
-                  <span class="opacity-70">📂</span> {{ groupName }}
+                  <span class="opacity-70 mr-2">📂</span> {{ groupName }}
+                  <span class="ml-3 px-2 py-0.5 bg-white rounded-full text-[9px] border border-blue-200">{{ rows.length }} pos</span>
                 </div>
-                <div v-else-if="['currency', 'number', 'percentage'].includes(col.type)" 
-                    class="text-[var(--m3-primary)] font-mono text-[14px] font-bold">
-                  {{ formatCell(getGroupSum(rows, col.key), col.type) }}
+                <div v-else-if="['currency', 'numero', 'percentage'].includes(col.type)" class="text-blue-900 font-mono text-[14px] font-bold">
+                  {{ formatGroupSum(getGroupSum(rows, col.key), col.type, col.key) }}
                 </div>
               </td>
             </tr>
 
-            <tr v-if="isExpanded(groupName)" v-for="(row, idx) in rows" :key="idx" class="hover:bg-slate-50 transition-colors group">
-              <td v-for="col in columns" :key="col.key" 
-                  class="px-4 py-3 text-[12px] text-slate-700 border-b border-[var(--app-border)]/50 whitespace-nowrap">
+            <tr v-if="isExpanded(groupName)" v-for="(row, idx) in rows" :key="row.tradeId || idx" class="hover:bg-slate-50 transition-colors group">
+              <td v-for="col in columns" :key="col.key" class="px-4 py-2.5 text-[12px] text-slate-700 border-b border-slate-100 whitespace-nowrap">
                 <span :class="getCellClass(row[col.key], col.type, col.key)">
                   {{ formatCell(row[col.key], col.type) }}
                 </span>
               </td>
             </tr>
           </tbody>
+          
+          <tfoot class="sticky bottom-0 z-20">
+            <tr class="bg-white/90 backdrop-blur-md shadow-[0_-8px_20px_-5px_rgba(0,0,0,0.05)]">
+              <td v-for="(col, index) in columns" :key="'total-'+index" class="px-4 py-4 border-t-2 border-slate-100 whitespace-nowrap">
+                
+                <div v-if="index === 0" class="text-[11px] font-black uppercase tracking-widest flex items-center text-slate-600">
+                  <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full mr-2 border-2 border-white shadow-sm"></span>
+                  TOTAL DO PORTFÓLIO
+                </div>
+                
+                <div v-else-if="['currency', 'numero', 'percentage'].includes(col.type)" class="font-mono text-[14px] font-black text-slate-800">
+                  {{ formatGroupSum(getGroupSum(activeData, col.key), col.type, col.key) }}
+                </div>
+                
+              </td>
+            </tr>
+          </tfoot>
+          
         </table>
       </div>
 
       <div v-else class="flex flex-col divide-y divide-slate-100 max-h-[70vh] overflow-y-auto custom-scrollbar-mobile">
         <div v-for="(rows, groupName) in groupedData" :key="'mob-grp-'+groupName" class="flex flex-col">
           
-          <div @click="toggleGroup(groupName)" class="p-4 bg-slate-50 flex justify-between items-center sticky top-0 z-10 border-b border-slate-200">
+          <div @click="toggleGroup(groupName)" class="p-4 bg-blue-50/50 flex justify-between items-center sticky top-0 z-10 border-b border-blue-100">
             <div class="flex items-center">
-               <span class="mr-3 text-brand-indigo transition-transform" :class="{'rotate-90': isExpanded(groupName)}">▶</span>
+               <span class="mr-3 text-blue-600 transition-transform" :class="{'rotate-90': isExpanded(groupName)}">▶</span>
                <div class="flex flex-col">
-                  <span class="text-[11px] font-black text-slate-800 uppercase tracking-tight">{{ groupName }}</span>
-                  <span class="text-[9px] text-slate-500 font-bold uppercase">{{ rows.length }} POSIÇÕES</span>
+                  <span class="text-[11px] font-black text-blue-900 uppercase tracking-tight">{{ groupName }}</span>
+                  <span class="text-[9px] text-blue-500 font-bold uppercase">{{ rows.length }} POSIÇÕES</span>
                </div>
             </div>
             <div class="text-right">
-               <p class="text-[10px] font-black text-brand-indigo font-mono">
-                 {{ formatCell(getGroupSum(rows, 'plTotalValor'), 'currency') }}
+               <p class="text-[10px] font-black text-blue-800 font-mono">
+                 {{ formatGroupSum(getGroupSum(rows, 'plTotalValor'), 'currency', 'plTotalValor') }}
                </p>
             </div>
           </div>
@@ -73,18 +89,18 @@
                  class="p-4 border-b border-slate-50 last:border-0 flex justify-between items-center active:bg-slate-50 transition-colors">
               <div class="flex flex-col space-y-1">
                 <div class="flex items-center space-x-2">
-                  <span class="text-xs font-black text-slate-900">{{ row.tickerAtivo }}</span>
-                  <span :class="getCellClass(row.moneynessCode, 'text', 'MONEYNESS_CODE')" class="text-[8px]">
-                    {{ row.moneynessCode }}
+                  <span class="text-xs font-black text-slate-900">{{ row.tickerAtivo || '--' }}</span>
+                  <span :class="getCellClass(row.moneynessCode, 'texto', 'moneynessCode')" class="text-[8px]">
+                    {{ row.moneynessCode || 'N/A' }}
                   </span>
                 </div>
                 <div class="flex items-center space-x-2 text-[10px]">
-                  <span class="text-slate-500 font-bold uppercase">{{ row.simboloOpcao }}</span>
-                  <span class="text-slate-400 font-mono">{{ formatCell(row.dataVencimento, 'date') }}</span>
+                  <span class="text-slate-500 font-bold uppercase">{{ row.simboloOpcao || '--' }}</span>
+                  <span class="text-slate-400 font-mono">{{ formatCell(row.dataVencimento, 'data') }}</span>
                 </div>
               </div>
               <div class="text-right">
-                <p :class="getCellClass(row.plTotalPct, 'percentage', 'P/L TOTAL %')" class="text-[11px] font-black font-mono">
+                <p :class="getCellClass(row.plTotalPct, 'percentage', 'plTotalPct')" class="text-[11px] font-black font-mono">
                   {{ formatCell(row.plTotalPct, 'percentage') }}
                 </p>
                 <p class="text-[9px] text-slate-400 font-bold font-mono">
@@ -99,12 +115,12 @@
 
     </div>
 
-    <div class="bg-white px-6 py-4 border-t border-[var(--app-border)] flex justify-between items-center text-[10px] font-bold text-[var(--m3-on-surface-variant)] uppercase tracking-widest">
+    <div class="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
       <span class="flex items-center">
-        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></span>
-        Filtro: ATIVO
+        <span class="w-2 h-2 bg-emerald-500 rounded-full mr-2"></span>
+        Ativos em Risco
       </span>
-      <span>{{ totalFilteredItems }} Itens</span>
+      <span>{{ totalFilteredItems }} Operações</span>
     </div>
   </div>
 </template>
@@ -112,30 +128,50 @@
 <script>
 window.CockpitTable = {
   props: {
-    columns: Array,
-    data: Array,
-    isMobile: Boolean, // 📱 Injetado pelo AppCore
-    isLoading: Boolean // 🚀 ROTA 1
+    data: Array, // A prop data é ignorada agora na V5
+    isMobile: Boolean, 
+    isLoading: Boolean,
+    statsPreCalculados: Object // 🚀 V5: A tabela lê direto do Cubo
   },
   template: '#cockpit-table-template',
   
   data() {
-    return {
-      expandedGroups: {}
-    };
-  },
+      return {
+        expandedGroups: {},
+        columns: [
+          { key: 'estrategiaId',    label: 'Estratégia', type: 'texto',     desc: 'Nome ou ID do grupo estratégico no qual a operação está inserida.' },
+          { key: 'tickerAtivo',     label: 'Ativo',      type: 'texto',     desc: 'Código do ativo objeto (Ação) na B3. Ex: PETR4.' },
+          { key: 'simboloOpcao',    label: 'Opção',      type: 'texto',     desc: 'Código oficial do contrato de opção. Ex: PETRO280.' },
+          { key: 'tipoOpcao',       label: 'Tipo',       type: 'texto',     desc: 'CALL (Opção de Compra - aposta na alta) ou PUT (Opção de Venda - aposta na baixa).' },
+          { key: 'direcaoTrade',    label: 'Direção',    type: 'texto',     desc: 'COMPRA (Pagou prêmio, risco limitado) ou VENDA (Recebeu prêmio, risco ilimitado).' },
+          { key: 'dataVencimento',  label: 'Venc.',      type: 'data',      desc: 'Data limite em que o contrato expira na bolsa.' },
+          { key: 'dteCorridos',     label: 'DTE',        type: 'numero',    desc: 'Days To Expiration: Quantos dias corridos faltam para o vencimento.' },
+          { key: 'strike',          label: 'Strike',     type: 'currency',  desc: 'Preço de exercício. O valor pré-acordado para a compra/venda da ação.' },
+          { key: 'spotPrice',       label: 'Spot',       type: 'currency',  desc: 'Preço atual da ação no mercado à vista.' },
+          { key: 'quantidade',      label: 'Qtd',        type: 'numero',    desc: 'Número de opções envolvidas nesta perna da estratégia.' },
+          { key: 'premioMedio',     label: 'PM',         type: 'currency',  desc: 'Preço Médio pago ou recebido por opção na abertura da posição.' },
+          { key: 'premioAtual',     label: 'P. Atual',   type: 'currency',  desc: 'Preço de mercado da opção neste momento.' },
+          { key: 'moneynessCode',   label: 'Moneyness',  type: 'texto',     desc: 'OTM (Fora do dinheiro - Seguro), ATM (No dinheiro - Alerta) ou ITM (Dentro do dinheiro - Risco).' },
+          { key: 'nocional',        label: 'Nocional',   type: 'currency',  desc: 'Exposição Financeira Total (Strike x Quantidade). O tamanho real do risco/alavancagem.' },
+          { key: 'ganhoMaximo',     label: 'Ganho Máx.', type: 'currency',  desc: 'Lucro máximo possível se a operação expirar a seu favor.' },
+          { key: 'plTotalValor',    label: 'P/L $',      type: 'currency',  desc: 'Profit/Loss: Lucro ou Prejuízo aberto no momento (em Reais).' },
+          { key: 'plTotalPct',      label: 'P/L %',      type: 'percentage', desc: 'Rentabilidade atual calculada sobre a exposição financeira (Nocional).' },
+          { key: 'delta',           label: 'Delta',      type: 'number',    desc: 'Sensibilidade: Quanto a opção muda de preço para cada R$1 de movimento na ação.' },
+          { key: 'probabilidadeSucesso', label: 'POE',   type: 'percentage', desc: 'Probabilidade Estatística da opção expirar sem valor (OTM).' }
+        ]
+      };
+    },
 
   computed: {
-    filteredAndSortedData() {
-      if (!this.data?.length) return [];
-      // Usa a nova chave 'status' e 'dataVencimento'
-      let filtered = this.data.filter(item => String(item.status || '').trim().toUpperCase() === 'ATIVO');
-      return filtered.sort((a, b) => this.parseDate(a.dataVencimento) - this.parseDate(b.dataVencimento));
+    // 🚀 V5: Consome a lista mastigada do Agregador
+    activeData() {
+      return this.statsPreCalculados?.listaAtivas || [];
     },
 
     groupedData() {
-      return this.filteredAndSortedData.reduce((acc, row) => {
-        // Usa a nova chave 'estrategiaId'
+      if (!this.activeData.length) return {};
+      
+      return this.activeData.reduce((acc, row) => {
         const group = row.estrategiaId || 'SEM ESTRATÉGIA';
         if (!acc[group]) acc[group] = [];
         acc[group].push(row);
@@ -144,7 +180,7 @@ window.CockpitTable = {
     },
 
     totalFilteredItems() {
-      return this.filteredAndSortedData.length;
+      return this.activeData.length;
     }
   },
 
@@ -152,61 +188,107 @@ window.CockpitTable = {
     toggleGroup(name) {
       this.expandedGroups[name] = !this.isExpanded(name);
     },
+    
     isExpanded(name) {
-      return this.expandedGroups[name] !== false;
+      // Por padrão, todos os grupos começam expandidos
+      return this.expandedGroups[name] !== false; 
     },
 
     getGroupSum(rows, key) {
-      return rows.reduce((sum, row) => {
-        let val = row[key];
-        if (!val && val !== 0) return sum;
-        if (typeof val === 'string') {
-          val = parseFloat(val.replace(/[R$.%]/g, '').replace(',', '.').trim());
-        }
-        return sum + (isNaN(val) ? 0 : val);
-      }, 0);
-    },
+      // 🚨 LISTA DE BLOQUEIO: O que não faz sentido somar matematicamente
+      const colunasNaoSomaveis = [
+        'dteCorridos', 
+        'strike', 
+        'premioMedio', 
+        'premioAtual', 
+        'spotPrice', 
+        'delta', 
+        'probabilidadeSucesso'
+      ];
+      
+      if (colunasNaoSomaveis.includes(key)) return null;
 
-    parseDate(dateStr) {
-      if (!dateStr || typeof dateStr !== 'string') return new Date(2099, 11, 31);
-      const parts = dateStr.split(' ')[0].split('/');
-      if (parts.length < 3) return new Date(2099, 11, 31);
-      return new Date(parts[2], parts[1] - 1, parts[0]);
+      const sum = rows.reduce((total, row) => {
+        let val = row[key];
+        if (typeof val === 'string') val = parseFloat(val.replace(/[^\d.-]/g, ''));
+        return total + (isNaN(val) ? 0 : Number(val));
+      }, 0);
+
+      // Recalcula a rentabilidade do grupo (não pode somar porcentagens de lucro de forma linear)
+      if (key === 'plTotalPct') {
+        const nocionalTotal = rows.reduce((tot, row) => tot + (Number(row.nocional) || 0), 0);
+        const plTotal = rows.reduce((tot, row) => tot + (Number(row.plTotalValor) || 0), 0);
+        return nocionalTotal > 0 ? (plTotal / nocionalTotal) * 100 : 0;
+      }
+
+      return sum;
     },
 
     formatCell(value, type) {
-      if (value === undefined || value === null || value === '') return '--';
-      if (type === 'date') return String(value).split(' ')[0];
-      if (type === 'currency') return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-      if (type === 'number') return new Intl.NumberFormat('pt-BR').format(value);
-      if (type === 'percentage') return (Number(value)).toFixed(2).replace('.', ',') + '%';
+      if (value === undefined || value === null || value === '' || Number.isNaN(value)) return '--';
+      
+      if (type === 'data') {
+        if (value instanceof Date) return value.toLocaleDateString('pt-BR');
+        return String(value).split(' ')[0]; // Limpa horas se houver
+      }
+      
+      if (type === 'currency' || type === 'moeda') {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+      }
+      
+      if (type === 'numero' || type === 'number') {
+        return new Intl.NumberFormat('pt-BR').format(value);
+      }
+      
+      if (type === 'percentage') {
+        return (Number(value)).toFixed(2).replace('.', ',') + '%';
+      }
+      
       return value;
     },
 
+    formatGroupSum(value, type, key) {
+      if (value === null) return '';
+      if (key === 'plTotalPct') return (Number(value)).toFixed(2).replace('.', ',') + '%';
+      return this.formatCell(value, type);
+    },
+
     getCellClass(value, type, colKey) {
-      if (!value && value !== 0) return 'text-slate-500';
+      if (value === undefined || value === null || value === '') return 'text-slate-400';
+      
       const valStr = String(value).trim().toUpperCase();
       const colName = String(colKey).toUpperCase();
 
+      // Formatação Visual por Tipo
       if (colName.includes('MONEYNESS')) {
         if (valStr.includes('OTM')) return 'text-emerald-700 font-black bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100';
-        if (valStr.includes('ITM')) return 'text-red-700 font-black bg-red-50 px-2 py-0.5 rounded border border-red-100 animate-pulse';
+        if (valStr.includes('ITM')) return 'text-red-700 font-black bg-red-50 px-2 py-0.5 rounded border border-red-100 shadow-sm';
         if (valStr.includes('ATM')) return 'text-amber-700 font-black bg-amber-50 px-2 py-0.5 rounded border border-amber-100';
       }
 
       if (colName.includes('TIPO')) {
-        if (valStr === 'CALL') return 'text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded';
-        if (valStr === 'PUT') return 'text-fuchsia-700 font-bold bg-fuchsia-50 px-1.5 py-0.5 rounded';
+        if (valStr === 'CALL') return 'text-sky-700 font-bold bg-sky-50 px-2 py-0.5 rounded';
+        if (valStr === 'PUT') return 'text-fuchsia-700 font-bold bg-fuchsia-50 px-2 py-0.5 rounded';
       }
       
-      if (type === 'currency' || type === 'percentage') {
-        const num = typeof value === 'string' ? parseFloat(value.replace(/[R$.%]/g, '').replace(',', '.')) : value;
-        if (num > 0) return 'text-emerald-700 font-mono font-bold';
-        if (num < 0) return 'text-red-700 font-mono font-bold';
+      // Cores para valores financeiros Positivos/Negativos
+      if (type === 'currency' || type === 'moeda' || type === 'percentage') {
+        const num = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : Number(value);
+        if (num > 0 && colName.includes('PL')) return 'text-emerald-600 font-mono font-bold';
+        if (num < 0 && colName.includes('PL')) return 'text-red-600 font-mono font-bold';
+        return 'text-slate-700 font-mono font-semibold'; // Nocional ou Strike não ficam verdes/vermelhos
       }
 
-      return 'text-slate-700 font-semibold';
+      if (type === 'numero' || type === 'number') return 'font-mono text-slate-600 font-bold';
+
+      return 'font-semibold text-slate-800';
     }
+  },
+  
+  mounted() {
+    console.groupCollapsed("📊 Sonda: Cockpit Table");
+    console.log("Operações Ativas Renderizadas:", this.totalFilteredItems);
+    console.groupEnd();
   }
 };
 </script>

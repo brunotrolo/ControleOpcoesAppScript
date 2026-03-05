@@ -15,7 +15,7 @@
     <div class="flex flex-col h-full relative z-10">
       <div class="flex flex-col mb-4">
         <h3 class="text-slate-900 font-black tracking-tighter uppercase text-3xl leading-none">Concentração</h3>
-        <span class="text-slate-400 uppercase tracking-[0.2em] font-bold text-[10px] mt-2">Exposição por Ativo</span>
+        <span class="text-slate-400 uppercase tracking-[0.2em] font-bold text-[10px] mt-2">Por Ativo</span>
       </div>
 
       <div v-if="isLoading" class="flex-1 space-y-5 animate-pulse mt-2">
@@ -77,40 +77,49 @@
 
 <script>
 window.CardConcentracao = {
-  props: { operations: Array, isMobile: Boolean, isLoading: Boolean },
+  props: { 
+    isMobile: Boolean, 
+    isLoading: Boolean, 
+    statsPreCalculados: Object // V5: Recebe o Cubo
+  },
   template: '#card-concentracao-template',
   computed: {
     concentracao() {
-      if (!this.operations?.length) return [];
-      const counts = {}; let total = 0;
-      this.operations.forEach(op => {
-        const t = String(op['TICKER'] || 'N/A').toUpperCase().trim();
-        counts[t] = (counts[t] || 0) + 1; total++;
-      });
+      // 1. Busca os dados matemáticos já mastigados do Cubo V5
+      const dadosMatematicos = this.statsPreCalculados?.concentracaoRisco || [];
+      
+      if (!dadosMatematicos.length) return [];
 
+      // Função para gerar cor consistente baseada no nome (Seu design)
       const getUniqueColor = (str) => {
         let hash = 0;
         for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        // Cores vibrantes mas legíveis para fundo escuro/claro
         return `hsl(${Math.abs(hash) % 360}, 70%, 45%)`;
       };
 
-      return Object.keys(counts).map(t => {
-        const c = counts[t]; const p = Math.round((c/total)*100);
-        const uColor = getUniqueColor(t);
+      // 2. Aplica apenas a "Maquiagem Visual" sobre os dados
+      return dadosMatematicos.map(item => {
+        const p = item.pesoPct || 0;
+        const uColor = getUniqueColor(item.ativo);
         
         let colorClass = 'text-blue-700', bgClass = 'bg-blue-600', cardClass = 'bg-blue-50/40 border-blue-100/50';
+        
+        // Regras de Risco Visual (Seu design)
         if (p >= 30) { colorClass = 'text-red-700'; bgClass = 'bg-red-600'; cardClass = 'bg-red-50 border-red-100'; }
         else if (p >= 20) { colorClass = 'text-amber-700'; bgClass = 'bg-amber-400'; cardClass = 'bg-amber-50 border-amber-100'; }
         
         return { 
-          ticker: t, count: c, pct: p, 
+          ticker: item.ativo,    // Chave que vem do Agregador
+          count: item.nocional,  // Opcional: Se quiser trocar por item.qtdOps
+          pct: p, 
           uniqueColor: uColor, 
-          textColor: colorClass, bgColor: bgClass, cardClass: cardClass 
+          textColor: colorClass, 
+          bgColor: bgClass, 
+          cardClass: cardClass 
         };
-      }).sort((a,b) => b.pct - a.pct);
+      });
     },
-    // Filtro para a barra do bottom (Ativos com pelo menos 5% de peso)
+    // Filtro para a barra inferior (Mobile)
     barItems() {
       return this.concentracao.filter(item => item.pct >= 5);
     },
@@ -118,6 +127,11 @@ window.CardConcentracao = {
       const displayedTotal = this.barItems.reduce((acc, item) => acc + item.pct, 0);
       return Math.max(0, 100 - displayedTotal);
     }
+  },
+  mounted() {
+    console.groupCollapsed("📊 Sonda: Card Concentração");
+    console.log("Stats Recebidos:", this.statsPreCalculados?.concentracaoRisco);
+    console.groupEnd();
   }
 };
 </script>

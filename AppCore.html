@@ -215,35 +215,37 @@ const app = createApp({
         // ====================================================================
         const getComponentProps = (compConfig) => {
             const baseProps = { 
-                    isMobile: isMobile.value,
-                    isLoading: isLoading.value,
-                    lastSync: lastSync.value,
-                    configGlobais: db.value.configGlobal || {},
-                    ...compConfig.props 
-                  };
+                  isMobile: isMobile.value,
+                  isLoading: isLoading.value,
+                  lastSync: lastSync.value,
+                  configGlobais: db.value.configGlobal || {},
+                  ...compConfig.props 
+                };
 
             const customProps = {
-                    'ticker-tape':      { ativos: db.value.dadosAtivos || [] },
-                    'card-summary':     { summaryData: dynamicSummaryData.value, statsPreCalculados: cuboOlap.value },
-                    'cockpit-table':    { data: db.value.cockpit || [] },
-                    
-                    // Cards Analíticos (Usam a lista filtrada de Ativas do Agregador)
-                    'card-distrib-moneyness': { statsPreCalculados: cuboOlap.value },
-                    'card-vencimentos': { statsPreCalculados: cuboOlap.value },
-                    'card-moneyness':   { statsPreCalculados: cuboOlap.value },
-                    'card-resultado':   { operations: cuboOlap.value.listaAtivas || [], statsPreCalculados: cuboOlap.value },
-                    'card-concentracao':{ operations: cuboOlap.value.listaAtivas || [] },
-                    'carousel-ativas':  { operations: cuboOlap.value.listaAtivas || [] },
-                    
-                    // Telas de Visão Geral e Ferramentas
-                    'consultoria-view': { operations: cuboOlap.value.listaAtivas || [], historico: db.value.historico250d || [] },
-                    'necton-import':    { data: db.value.necton || [] },
-                    'gestao-ativos':    { ativos: db.value.dadosAtivos || [] },
-                    'settings-view':    { configGlobais: db.value.configGlobal || {} },
-                    'scanner-view':     { scannerData: db.value.scannerOportunidades || [] },
-                    'comparativo-view': { db: db.value }, // Envia o banco completo para comparação
-                    'bancodedados-view':{ db: db.value }
-                  };
+                  'ticker-tape':      { ativos: db.value.dadosAtivos || [] },
+                  'card-summary':     { statsPreCalculados: cuboOlap.value },
+                  'cockpit-table':    { statsPreCalculados: cuboOlap.value },
+                  
+                  // 🔥 TODOS os Cards Analíticos V5 agora usam apenas o Cubo
+                  'card-distrib-moneyness': { statsPreCalculados: cuboOlap.value },
+                  'card-vencimentos': { statsPreCalculados: cuboOlap.value },
+                  'card-moneyness':   { statsPreCalculados: cuboOlap.value },
+                  'card-resultado':   { statsPreCalculados: cuboOlap.value },
+                  'card-concentracao':{ statsPreCalculados: cuboOlap.value },
+                  
+                  // Componentes de Listagem recebem o cubo para extrair a 'listaAtivas'
+                  'carousel-ativas':  { statsPreCalculados: cuboOlap.value },
+                  
+                  // Telas de Visão Geral e Ferramentas
+                  'consultoria-view': { statsPreCalculados: cuboOlap.value, historico: db.value.historico250d || [] },
+                  'necton-import':    { data: db.value.necton || [] },
+                  'gestao-ativos':    { ativos: db.value.dadosAtivos || [] },
+                  'settings-view':    { configGlobais: db.value.configGlobal || {} },
+                  'scanner-view':     { scannerData: db.value.scannerOportunidades || [] },
+                  'comparativo-view': { db: db.value },
+                  'bancodedados-view':{ db: db.value }
+                };
 
             return { ...baseProps, ...(customProps[compConfig.component] || {}) };
         };

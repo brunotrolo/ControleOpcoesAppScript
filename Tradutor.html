@@ -339,9 +339,17 @@ window.Tradutor = {
     if (typeof val === 'number') return val;
     let s = String(val).trim().replace(/[R$\s]/gi, '');
     
-    // Identifica se o formato é Brasileiro (possui vírgula para decimal)
     if (s.includes(',')) {
+      // Formato BR clássico (ex: 1.500,50 -> 1500.50)
       s = s.replace(/\./g, '').replace(',', '.');
+    } else if (s.includes('.')) {
+      // 🚨 TRAVA DE MILHAR: Protege "1.000" e "1.500" vindos do Sheets sem vírgula
+      // Checa se as partes após o ponto têm exatamente 3 dígitos
+      const partes = s.split('.');
+      const isMilharBR = partes.slice(1).every(p => p.length === 3);
+      if (isMilharBR) {
+         s = s.replace(/\./g, ''); // "1.500" -> "1500"
+      }
     }
     
     const num = parseFloat(s);

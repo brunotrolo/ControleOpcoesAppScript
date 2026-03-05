@@ -32,7 +32,8 @@ window.Agregador = {
         moneynessPorTipo: this._calcularMoneynessPorTipo(tradesComRisco),
         resultadoStats: this._calcularResultados(tradesComRisco),
         vencimentosDteStats: this._calcularVencimentosDTE(tradesComRisco),
-        performanceStats: this._calcularResultados(tradesComRisco)
+        performanceStats: this._calcularResultados(tradesComRisco),
+        listaAtivas: tradesComRisco 
     };
   },
 
@@ -287,6 +288,32 @@ window.Agregador = {
         pctMedio: Math.round((medio / total) * 100),
         pctLongo: Math.round((longo / total) * 100)
       };
+    },
+
+  _calcularConcentracao(trades) {
+      if (!trades || trades.length === 0) return [];
+
+      let totalGeral = 0;
+      const mapa = {};
+
+      trades.forEach(t => {
+        // Usa a chave do Tradutor
+        const ativo = t.tickerAtivo || 'N/A';
+        const valor = 1; // Contando 1 por operação. Mude para t.nocional se quiser exposição financeira.
+        
+        if (!mapa[ativo]) mapa[ativo] = 0;
+        mapa[ativo] += valor;
+        totalGeral += valor;
+      });
+
+      // Converte para array, calcula % e ordena do maior para o menor
+      return Object.keys(mapa)
+        .map(ativo => ({
+          ativo,
+          nocional: mapa[ativo], // Representa a contagem de operações neste caso
+          pesoPct: totalGeral > 0 ? Math.round((mapa[ativo] / totalGeral) * 100) : 0
+        }))
+        .sort((a, b) => b.nocional - a.nocional);
     },
 
   _enriquecerDados(trades, greeks) {
