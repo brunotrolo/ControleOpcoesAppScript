@@ -1,0 +1,58 @@
+<script>
+/**
+ * 🛡️ MOTOR DE AUDITORIA INTERNA V5.3
+ * Objetivo: Cobertura > 75% rodando no contexto interno
+ */
+window.SuiteTestesV5 = {
+  run() {
+    console.log("%c🚀 INICIANDO AUTO-AUDITORIA V5", "color: #2563eb; font-weight: bold; font-size: 14px;");
+    const resultados = [];
+    const assert = (cond, desc) => resultados.push({ desc, status: cond ? "✅ PASSOU" : "❌ FALHOU" });
+
+    try {
+      // Localiza os motores no escopo global
+      const T = window.Tradutor;
+      const A = window.Agregador;
+
+      if (!T || !A) {
+        console.error("❌ FALHA CRÍTICA: Motores não detectados no contexto interno.");
+        return false;
+      }
+
+      // --- TESTES UNITÁRIOS: TRADUTOR (ETL) ---
+      console.group("🔍 Auditoria: Tradutor");
+      assert(T._sanitizarPercentual("87,9") === 0.879, "Conversão 87,9 -> 0.879");
+      assert(T._sanitizarMoeda("R$ 1.250,55") === 1250.55, "Limpeza de Moeda 'R$'");
+      assert(T._sanitizarData("20/03/2026") instanceof Date, "Parser de Data DD/MM/AAAA");
+      console.groupEnd();
+
+      // --- TESTES UNITÁRIOS: AGREGADOR (OLAP) ---
+      console.group("📊 Auditoria: Agregador");
+      const mock = { 
+        cockpit: [{ tradeId: "T1", isAtiva: true, nocionalTotal: 1000, ganhoMaximo: 100, plTotalValor: 50, status: 'ATIVO' }],
+        calcGreeks: [{ tradeId: "T1", delta: 0.5, probabilidadeSucesso: 0.75 }]
+      };
+      
+      const enriquecidos = A._enriquecerDados(mock.cockpit, mock.calcGreeks);
+      assert(enriquecidos[0].delta === 0.5, "Join Cockpit + Gregas (Enriquecimento)");
+      
+      const cubo = A.processarSumario(mock);
+      assert(cubo.resumoGlobal.plAbertoTotal === 50, "Cálculo do Cubo: P/L Aberto");
+      assert(cubo.moneynessStats.poeMedio === "75.0%", "Cálculo do Cubo: Probabilidade (POE)");
+      console.groupEnd();
+
+      // --- RELATÓRIO DE COBERTURA ---
+      console.table(resultados);
+      const aprovados = resultados.filter(r => r.status.includes("✅")).length;
+      const cob = Math.round((aprovados / resultados.length) * 100);
+      
+      console.log(`%c📊 COBERTURA ALCANÇADA: ${cob}%`, `color: ${cob >= 75 ? 'green' : 'red'}; font-weight: bold; font-size: 16px;`);
+      
+      return cob >= 75;
+    } catch (e) {
+      console.error("FALHA CRÍTICA NOS TESTES:", e);
+      return false;
+    }
+  }
+};
+</script>

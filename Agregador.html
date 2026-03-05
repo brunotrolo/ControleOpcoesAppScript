@@ -1,210 +1,207 @@
 <script>
-
-/**
- * O CÉREBRO DO SISTEMA (Agregador v5.2 - Edição de Precisão)
- * Blindado contra conflitos de nomes (Moneyness vs Moneyness_Code).
- */
-const Agregador = {
+window.Agregador = {
   
-  processarSumario(cockpitLimpo) {
-    const defaultRet = this._retornoVazio();
-    
-    if (!Array.isArray(cockpitLimpo) || cockpitLimpo.length === 0) return defaultRet;
-    const primeiraLinhaValida = cockpitLimpo.find(row => row && typeof row === 'object');
-    if (!primeiraLinhaValida) return defaultRet;
+  /**
+   * 🚀 O ORQUESTRADOR DO CUBO OLAP (Single Source of Truth)
+   * Único ponto de entrada. Consome o db global e cospe o `statsPreCalculados`.
+   */
+  processarSumario(db) {
+    if (!db || !db.cockpit || db.cockpit.length === 0) {
+        console.warn("[AGREGADOR] Cockpit ausente ou vazio.");
+        return this._gerarCuboVazio();
+    }
 
-    // A. Mapeamento das colunas com busca de precisão
-    const colunas = this._mapearColunas(Object.keys(primeiraLinhaValida));
-    
-    // B. Filtragem por Status
-    const opsAtivas = this._filtrarAtivas(cockpitLimpo, colunas.STATUS);
-    if (opsAtivas.length === 0) return defaultRet;
+    // 1. ISOLAMENTO TÁTICO (Foco em Trades Ativos)
+    // O Tradutor já limpou, aqui apenas usamos o booleano isAtiva conforme o Blueprint
+    const tradesAtivos = db.cockpit.filter(t => t.isAtiva || t.status === 'ATIVO');
 
-    // C. Cálculos Independentes
-    const metricas = this._calcularMetricas(opsAtivas, colunas);
-    const moneyness = this._calcularMoneyness(opsAtivas, colunas);
-    const resultados = this._calcularResultados(opsAtivas, colunas);
+    // 2. ENRIQUECIMENTO (JOIN)
+    // Aqui cruzamos os dados do Cockpit com as Gregas para ter o Delta/Gamma total
+    const tradesComRisco = this._enriquecerDados(tradesAtivos, db.calcGreeks);
 
+    // 3. GERAÇÃO DAS GAVETAS DO CUBO
     return {
-      totalOps: opsAtivas.length,
-      listaAtivas: opsAtivas,
-      
-      plTotal: metricas.plTotal,
-      plTotalAtual: metricas.plTotalAtual,
-      plPctMedio: metricas.plPctMedio,
-      lucroMaxTotal: metricas.lucroMaxTotal,
-      perdaMaxTotal: metricas.perdaMaxTotal,
-      nocionalTotal: metricas.nocionalTotal,
-      ganhoMaximo: metricas.ganhoMaximo,
-      custoZeragem: metricas.custoZeragem,
-      premioMedio: metricas.premioMedio, // <--- ADICIONE ISTO AQUI
-
-      deltaTotal: metricas.deltaTotal,
-      gammaTotal: metricas.gammaTotal,
-      vegaTotal: metricas.vegaTotal,
-      thetaTotal: metricas.thetaTotal,
-      rhoTotal: metricas.rhoTotal,
-
-      ivMedio: metricas.ivMedio,
-      poeMedio: metricas.poeMedio,
-      dteMedio: metricas.dteMedio,
-      volMedio: metricas.volMedio,
-      varMedia: metricas.varMedia,
-      qtdTotal: metricas.qtdTotal,
-
-      counts: moneyness.counts,
-      moneyness: moneyness.percent,
-      resultados: resultados
+        meta: { timestamp: new Date().toISOString(), status: 'CALCULATED' },
+        resumoGlobal: this._calcularMetricasGlobais(tradesComRisco),
+        distribuicaoVencimentos: this._calcularVencimentos(tradesComRisco),
+        concentracaoRisco: this._calcularConcentracao(tradesComRisco),
+        moneynessStats: this._calcularMoneyness(tradesComRisco),
+        performanceStats: this._calcularResultados(tradesComRisco)
     };
   },
 
-  _retornoVazio() {
-    return {
-      totalOps: 0, plTotal: 0, thetaTotal: 0, custoZeragem: 0, ivMedio: 0,
-      deltaTotal: 0, gammaTotal: 0, vegaTotal: 0, rhoTotal: 0, 
-      poeMedio: 0, dteMedio: 0, nocionalTotal: 0,
-      counts: { otm: 0, atm: 0, itm: 0 },
-      moneyness: { otm: 0, atm: 0, itm: 0 },
-      resultados: { noLucro: { qtd: 0, pct: 0 }, noPrejuizo: { qtd: 0, pct: 0 }, noBreakeven: { qtd: 0, pct: 0 } },
-      listaAtivas: []
-    };
-  },
+  // =========================================================================
+  // 🧮 GAVETAS DE CÁLCULO (Motor Analítico)
+  // =========================================================================
 
-  _mapearColunas(headers) {
-      const findCol = (termoAlvo) => {
-        const termo = String(termoAlvo).toUpperCase().trim();
-        // Ajuste de Precisão: Prioriza o nome exato para não pegar "MONEYNESS_CODE" por engano
-        return headers.find(h => h === termo) || 
-              headers.find(h => h.includes(termo));
-      };
-
-      return {
-        STATUS:      findCol('STATUS'),
-        PL_TOTAL:    findCol('P/L TOTAL'),
-        PL_PCT:      findCol('P/L TOTAL %'),
-        PL_ATUAL:    findCol('P/L ATUAL'),
-        THETA:       findCol('THETA'),
-        DELTA:       findCol('DELTA'),
-        GAMMA:       findCol('GAMMA'),
-        VEGA:        findCol('VEGA'),
-        RHO:         findCol('RHO'),
-        NOCIONAL:    findCol('NOCIONAL'),
-        LUCRO_MAX:   findCol('LUCRO MAX'),
-        PERDA_MAX:   findCol('PERDA MÁXIMA'),
-        GANHO_MAX:   findCol('GANHO MÁXIMO'),
-        MONEY:       findCol('MONEYNESS'), // <--- Agora ele busca o exato primeiro
-        IV:          findCol('IV_1Y_RANK'),
-        POE:         findCol('POE'),
-        DTE:         findCol('DTE UTEIS'),
-        QTD:         findCol('QTD'),
-        PREMIO_PM:   findCol('PRÊMIO (PM)'),
-        CUSTO:       findCol('PRÊMIO ATUAL'),
-        VOL:         findCol('VOLATILITY'),
-        VAR:         findCol('VARIATION')
-      };
-    },
-
-  _filtrarAtivas(dadosBrutos, colStatus) {
-    if (!colStatus) return [];
-    return dadosBrutos.filter(op => {
-      const status = String(op[colStatus] || '').toUpperCase().trim();
-      return status === 'ATIVO' || status === 'ATIVA';
-    });
-  },
-
-  _calcularMetricas(ops, col) {
-
-    let m = {
-      plTotal: 0, plTotalAtual: 0, plPctTotal: 0, thetaTotal: 0, 
-      deltaTotal: 0, gammaTotal: 0, vegaTotal: 0, rhoTotal: 0,
-      nocionalTotal: 0, lucroMaxTotal: 0, perdaMaxTotal: 0, ganhoMaximo: 0,
-      ivSoma: 0, poeSoma: 0, dteSoma: 0, volSoma: 0, varSoma: 0, 
-      qtdTotal: 0, custoZeragem: 0, premioPMTotal: 0, /* <-- ADD: Prêmio PM */
-      contaIv: 0, contaPoe: 0, contaDte: 0, contaPremio: 0
+  _calcularMetricasGlobais(trades) {
+    const globais = {
+        totalOperacoes: trades.length,
+        // CORREÇÃO DE CHAVES: Agora batem 100% com o Dicionário do Tradutor
+        nocionalTotal: trades.reduce((acc, t) => acc + (t.nocionalTotal || 0), 0),
+        lucroMaximoProjetado: trades.reduce((acc, t) => acc + (t.ganhoMaximo || 0), 0),
+        plAbertoTotal: trades.reduce((acc, t) => acc + (t.plTotalValor || 0), 0),
+        plSessaoTotal: trades.reduce((acc, t) => acc + (t.plSessaoValor || 0), 0),
+        deltaNet: trades.reduce((acc, t) => acc + (t.delta || 0), 0), // Novo: Risco Direcional
+        taxaMediaRetorno: 0 
     };
 
-    ops.forEach(op => {
-      const num = (v) => Tradutor.limparNumero(v);
+    if (globais.nocionalTotal > 0) {
+        globais.taxaMediaRetorno = (globais.lucroMaximoProjetado / globais.nocionalTotal) * 100;
+    }
 
-      if (col.PL_TOTAL) m.plTotal += num(op[col.PL_TOTAL]);
-      if (col.PL_ATUAL) m.plTotalAtual += num(op[col.PL_ATUAL]);
-      if (col.THETA)    m.thetaTotal += num(op[col.THETA]);
-      if (col.DELTA)    m.deltaTotal += num(op[col.DELTA]);
-      if (col.GAMMA)    m.gammaTotal += num(op[col.GAMMA]);
-      if (col.VEGA)     m.vegaTotal  += num(op[col.VEGA]);
-      if (col.NOCIONAL) m.nocionalTotal += num(op[col.NOCIONAL]);
-      if (col.LUCRO_MAX) m.lucroMaxTotal += num(op[col.LUCRO_MAX]);
-      if (col.GANHO_MAX) m.ganhoMaximo += num(op[col.GANHO_MAX]);
-      if (col.QTD)       m.qtdTotal += num(op[col.QTD]);
-      if (col.PL_PCT)    m.plPctTotal += num(op[col.PL_PCT]);
-
-      // --- NOVO: Captura os Prêmios ---
-      // Se você mapeou PREMIO_PM no _mapearColunas, você precisa capturar aqui
-      // Como não vi PREMIO_PM no seu mapeamento atual, vamos usar o Custo
-      if (col.CUSTO) {
-         m.custoZeragem += num(op[col.CUSTO]); 
-      }
-
-      if (col.PREMIO_PM) {
-         m.premioPMTotal += num(op[col.PREMIO_PM]); // <--- ADICIONE ESTA LINHA AQUI
-      }
-
-      const dteVal = num(op[col.DTE]);
-      if (dteVal !== 0) { m.dteSoma += dteVal; m.contaDte++; }
-
-      const ivVal = num(op[col.IV]); if (ivVal !== 0) { m.ivSoma += ivVal; m.contaIv++; }
-      const poeVal = num(op[col.POE]); if (poeVal !== 0) { m.poeSoma += poeVal; m.contaPoe++; }
-    });
-
-    const len = ops.length || 1;
-    return {
-      ...m, // Mantém os acumulados
-      plPctMedio: m.plPctTotal, // Removemos a divisão por 'len' para mostrar a soma real de -496,50%
-      ivMedio: m.contaIv > 0 ? (m.ivSoma / m.contaIv) : 0,
-      poeMedio: m.contaPoe > 0 ? (m.poeSoma / m.contaPoe) : 0,
-      dteMedio: m.contaDte > 0 ? (m.dteSoma / m.contaDte) : 0,
-      premioMedio: m.premioPMTotal // <--- TROQUE PARA ISTO (Sem dividir, pega a soma real!)    
-      };
+    return globais;
   },
 
-  _calcularMoneyness(ops, colunas) {
-    let otm = 0, itm = 0, atm = 0;
-    ops.forEach(op => {
-      const money = String(op[colunas.MONEY] || '').toUpperCase().trim();
-      if (money === 'OTM') otm++;
-      else if (money === 'ITM') itm++;
-      else if (money === 'ATM') atm++;
-      // Fallback para caso o texto seja "OTM (Fora)" ou algo similar
-      else if (money.includes('OTM')) otm++;
-      else if (money.includes('ITM')) itm++;
-      else if (money.includes('ATM')) atm++;
-    });
-    const total = (otm + itm + atm) || 1;
-    return {
-      counts: { otm, itm, atm },
-      percent: {
-        otm: Math.round((otm / total) * 100),
-        atm: Math.round((atm / total) * 100),
-        itm: Math.round((itm / total) * 100)
-      }
-    };
+  _calcularVencimentos(tradesAtivos) {
+    const mapaVencimentos = tradesAtivos.reduce((acc, trade) => {
+        // Trava de segurança para data
+        let chaveData = 'N/A';
+        if (trade.dataVencimento instanceof Date) {
+            chaveData = trade.dataVencimento.toISOString().split('T')[0];
+        } else if (trade.dataVencimento) {
+            chaveData = String(trade.dataVencimento).split('T')[0];
+        }
+        
+        if (!acc[chaveData]) {
+            acc[chaveData] = { 
+                dataVencimento: chaveData, 
+                dteMedioUteis: 0, 
+                nocionalTotal: 0, 
+                lucroMaximo: 0, 
+                plAberto: 0, 
+                contagem: 0 
+            };
+        }
+        
+        acc[chaveData].contagem += 1;
+        // Chaves Harmonizadas com o Tradutor V5:
+        acc[chaveData].nocionalTotal += (trade.nocionalTotal || 0); 
+        acc[chaveData].lucroMaximo += (trade.ganhoMaximo || 0);     
+        acc[chaveData].plAberto += (trade.plTotalValor || 0);       
+        acc[chaveData].dteMedioUteis += (trade.dteUteis || 0);
+        
+        return acc;
+    }, {});
+
+    return Object.values(mapaVencimentos)
+        .map(v => {
+            v.dteMedioUteis = Math.round(v.dteMedioUteis / v.contagem);
+            return v;
+        })
+        .sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
   },
 
-  _calcularResultados(ops, colunas) {
+  _calcularConcentracao(tradesAtivos) {
+    const mapaConcentracao = tradesAtivos.reduce((acc, trade) => {
+        const ticker = trade.tickerAtivo || 'DESCONHECIDO';
+        
+        if (!acc[ticker]) {
+            acc[ticker] = { 
+                ticker: ticker, 
+                nocionalAlocado: 0, 
+                lucroProjetado: 0, 
+                plAtual: 0, 
+                operacoes: 0 
+            };
+        }
+        
+        acc[ticker].operacoes += 1;
+        // Chaves Harmonizadas com o Tradutor V5:
+        acc[ticker].nocionalAlocado += (trade.nocionalTotal || 0);
+        acc[ticker].lucroProjetado += (trade.ganhoMaximo || 0);
+        acc[ticker].plAtual += (trade.plTotalValor || 0);
+        
+        return acc;
+    }, {});
+
+    // Retorna ordenado por maior Nocional (Risco de Cauda)
+    return Object.values(mapaConcentracao).sort((a, b) => b.nocionalAlocado - a.nocionalAlocado);
+  },
+
+  _calcularResultados(tradesAtivos) {
     let lucroQtd = 0, prejuQtd = 0, breakQtd = 0;
-    ops.forEach(op => {
-      const pl = Tradutor.limparNumero(op[colunas.PL_TOTAL]);
+    const total = tradesAtivos.length;
+
+    if (total === 0) return this._gerarCuboVazio().performanceStats;
+
+    tradesAtivos.forEach(op => {
+      const pl = op.plTotalValor || 0;
       if (pl > 0.01) lucroQtd++;
       else if (pl < -0.01) prejuQtd++;
       else breakQtd++;
     });
-    const total = (lucroQtd + prejuQtd + breakQtd) || 1;
+
+    const pctLucro = Math.round((lucroQtd / total) * 100);
+    
     return {
-      noLucro: { qtd: lucroQtd, pct: Math.round((lucroQtd / total) * 100) },
+      noLucro: { qtd: lucroQtd, pct: pctLucro },
       noPrejuizo: { qtd: prejuQtd, pct: Math.round((prejuQtd / total) * 100) },
-      noBreakeven: { qtd: breakQtd, pct: Math.round((breakQtd / total) * 100) }
+      noBreakeven: { qtd: breakQtd, pct: Math.round((breakQtd / total) * 100) },
+      performanceKey: (pctLucro >= 60) ? 'ALTA' : (pctLucro >= 40 ? 'ESTAVEL' : 'CRITICA')
+    };
+  },
+
+  _calcularMoneyness(tradesAtivos) {
+    let totalOtm = 0, totalAtm = 0, totalItm = 0;
+    let somaProbabilidade = 0;
+    let contProbabilidade = 0;
+
+    const total = tradesAtivos.length;
+    if (total === 0) return this._gerarCuboVazio().moneynessStats;
+
+    tradesAtivos.forEach(op => {
+      // 1. Classificação de Posicionamento (Moneyness)
+      const m = op.moneynessCode || 'ATM'; 
+      if (m === 'ITM') totalItm++;
+      else if (m === 'OTM') totalOtm++;
+      else totalAtm++;
+
+      // 2. Agregação de Probabilidade (POE - vindo do Calc_Greeks)
+      if (op.probabilidadeSucesso !== undefined && op.probabilidadeSucesso !== null) {
+        somaProbabilidade += op.probabilidadeSucesso;
+        contProbabilidade++;
+      }
+    });
+
+    const otmPct = Math.round((totalOtm / total) * 100);
+    const poeMedio = contProbabilidade > 0 ? (somaProbabilidade / contProbabilidade) : 0;
+    
+    // Lógica de Status Baseada em Defesa (OTM) e Probabilidade (POE)
+    let statusKey = 'ALERTA';
+    if (otmPct >= 80 && poeMedio >= 0.7) statusKey = 'BLINDADO';
+    else if (otmPct >= 50 || poeMedio >= 0.6) statusKey = 'CONTROLADO';
+
+    return { 
+        otmPct, 
+        atmPct: Math.round((totalAtm / total) * 100), 
+        itmPct: Math.round((totalItm / total) * 100),
+        poeMedio: (poeMedio * 100).toFixed(1) + '%', // Formatação para UI
+        statusKey
+    };
+  },
+
+  _enriquecerDados(trades, greeks) {
+    if (!greeks || greeks.length === 0) return trades;
+    
+    return trades.map(t => {
+      const g = greeks.find(greek => greek.tradeId === t.tradeId);
+      return g ? { ...t, ...g } : t;
+    });
+  },
+
+  /**
+   * Esqueleto de segurança.
+   */
+  _gerarCuboVazio() {
+    return {
+        meta: { status: 'EMPTY' },
+        resumoGlobal: { totalOperacoes: 0, nocionalTotal: 0, lucroMaximoProjetado: 0, plAbertoTotal: 0, plSessaoTotal: 0, taxaMediaRetorno: 0 },
+        distribuicaoVencimentos: [],
+        concentracaoRisco: [],
+        moneynessStats: { otmPct: 0, atmPct: 0, itmPct: 0, statusKey: 'AGUARDANDO' },
+        performanceStats: { noLucro: { qtd: 0, pct: 0 }, noPrejuizo: { qtd: 0, pct: 0 }, noBreakeven: { qtd: 0, pct: 0 }, performanceKey: 'AGUARDANDO' }
     };
   }
 };
-
 </script>
