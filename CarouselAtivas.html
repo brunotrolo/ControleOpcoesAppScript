@@ -1,313 +1,351 @@
 <div id="carousel-ativas-html">
 
-  <template id="card-operacao-template">
-    <div class="carousel-item flex-none w-[320px] snap-start">
-      <div :class="['bg-[var(--app-surface)] border rounded-[28px] p-6 shadow-sm h-full flex flex-col transition-all hover:shadow-md hover:scale-[1.01]', styleContext.border]">
-        <div class="flex justify-between items-start mb-6">
-          <div class="flex flex-col gap-3">
-            <div>
-              <span class="text-[9px] font-black uppercase tracking-widest opacity-60">Vencimento</span>
-              <div class="text-[11px] font-mono font-bold text-slate-700">
-                {{ getVal('Vencimento') }} <span class="text-amber-600 ml-1">({{ getVal('DTE') }}d)</span>
+  <template id="carousel-ativas-template">
+    <div class="col-span-12 mt-8 mb-12">
+      
+      <div class="flex justify-between items-end mb-6 px-4">
+        <div>
+          <h3 class="text-[var(--m3-on-surface)] text-xl md:text-2xl font-bold tracking-tight uppercase">Cartões</h3>
+          <p class="text-[var(--m3-on-surface-variant)] text-[10px] md:text-xs uppercase tracking-[0.2em] font-bold mt-1">Por Posição</p>
+        </div>
+        <div v-if="!isLoading && activeTrades.length > 0" class="hidden md:flex gap-4">
+          <div class="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-sm"></span>
+            <span class="text-[10px] font-black text-emerald-700 uppercase tracking-widest">{{ opsOTM }} OTM</span>
+          </div>
+          <div class="flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-full border border-red-100">
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-sm"></span>
+            <span class="text-[10px] font-black text-red-700 uppercase tracking-widest">{{ opsITM }} ITM</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isLoading || activeTrades.length === 0" class="flex overflow-x-auto pb-8 gap-6 px-4">
+        <div v-for="n in (isMobile ? 2 : 6)" :key="'skel-'+n" 
+             class="carousel-item flex-none snap-start"
+             :class="isMobile ? 'w-[88vw]' : 'w-[340px]'">
+          <div class="bg-white border border-slate-200 rounded-[32px] p-6 shadow-sm h-[440px] animate-pulse">
+             <div class="h-4 bg-slate-200 rounded w-1/2 mb-4"></div>
+             <div class="h-10 bg-slate-200 rounded w-3/4 mb-10"></div>
+             <div class="h-20 bg-slate-100 rounded-2xl mb-4"></div>
+             <div class="grid grid-cols-3 gap-4">
+               <div v-for="i in 6" class="h-8 bg-slate-100 rounded"></div>
+             </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else>
+
+
+
+
+        <div v-if="isMobile" class="space-y-12 px-2 pb-10">
+          <div v-for="(opsDoVencimento, dataVencimento) in operacoesPorVencimento" :key="dataVencimento" class="flex flex-col">
+            
+            <div class="flex justify-between items-center mb-8 px-6 border-l-[12px] border-blue-500 bg-blue-50/50 py-6 rounded-r-[32px]">
+              <div class="flex flex-col">
+                <span class="text-sm font-black uppercase text-blue-600 tracking-widest">Vencimento</span>
+                <h4 class="text-4xl font-black text-slate-800">{{ dataVencimento }}</h4>
+              </div>
+              <span class="bg-white px-6 py-3 rounded-2xl border-2 text-xl font-black text-blue-700 shadow-sm">
+                {{ opsDoVencimento.length }} ATIVOS
+              </span>
+            </div>
+            
+            <div class="flex overflow-x-auto gap-8 snap-x snap-mandatory custom-scrollbar-mobile pb-8 px-2">
+              <div v-for="(op, idx) in opsDoVencimento" :key="'mob-'+idx" 
+                   class="carousel-item flex-none w-[85vw] snap-center bg-white border-2 rounded-[56px] p-12 shadow-2xl flex flex-col active:scale-[0.98] transition-all"
+                   :class="getStyleContext(op).borderClass">
+                
+                <div class="flex justify-between items-start mb-10">
+                  <div class="flex flex-col gap-3">
+                    <div class="flex items-center gap-6">
+                      <span class="text-7xl font-black text-slate-900 tracking-tighter">{{ op.tickerAtivo }}</span>
+                      <span :class="getTipoBadgeClass(op)" class="text-base px-5 py-2 rounded-2xl font-black uppercase tracking-widest border-2">
+                        {{ String(op.direcaoTrade || '').charAt(0) }} {{ op.tipoOpcao }}
+                      </span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                      <span class="text-2xl font-black text-slate-400 uppercase tracking-widest">{{ op.simboloOpcao }}</span>
+                      <span class="text-slate-300 text-3xl">|</span>
+                      <span class="text-slate-600 font-bold text-xl uppercase tracking-widest">QTD: {{ formatVal(op.quantidade, 'number') }}</span>
+                    </div>
+                  </div>
+                  
+                  <div class="text-right flex flex-col items-end gap-3 pt-2">
+                    <div :class="getStyleContext(op).badgeClass" class="px-6 py-2.5 rounded-2xl text-base font-black tracking-widest border uppercase shadow-md">
+                      {{ op.moneynessCode }}
+                    </div>
+                    <div class="flex flex-col items-end">
+                      <span class="text-sm font-black text-slate-400 uppercase tracking-widest">Venc. ({{ op.dteCorridos }}d)</span>
+                      <span class="text-2xl font-black text-slate-700 font-mono">{{ formatVal(op.dataVencimento, 'date') }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                  <div class="bg-slate-50 rounded-[40px] border-2 border-slate-100 py-4 px-2 mb-4 flex justify-around items-center shadow-inner">
+                    
+                    <div class="text-center flex-1">
+                      <p class="text-[11px] font-black uppercase text-slate-400 mb-0.5 tracking-widest">Spot</p>
+                      <p class="text-4xl font-mono font-black text-slate-800 leading-none">{{ formatVal(op.spotPrice, 'currency') }}</p>
+                    </div>
+
+                    <div class="h-16 w-[3px] bg-slate-200 rounded-full mx-1"></div>
+
+                    <div class="text-center flex-1">
+                      <p class="text-[11px] font-black uppercase text-slate-400 mb-0.5 tracking-widest">Dist.</p>
+                      <p :class="((Number(op.spotPrice)/Number(op.strike))-1) >= 0 ? 'text-emerald-600' : 'text-red-600'" 
+                        class="text-2xl font-mono font-black bg-white px-4 py-1.5 rounded-2xl border-2 shadow-sm inline-block leading-none">
+                        {{ ((Number(op.spotPrice)/Number(op.strike))-1) > 0 ? '+' : '' }}{{ (((Number(op.spotPrice)/Number(op.strike))-1)*100).toFixed(1) }}%
+                      </p>
+                    </div>
+
+                    <div class="h-16 w-[3px] bg-slate-200 rounded-full mx-1"></div>
+
+                    <div class="text-center flex-1">
+                      <p class="text-[11px] font-black uppercase text-slate-400 mb-0.5 tracking-widest">Strike</p>
+                      <p class="text-4xl font-mono font-black text-slate-800 leading-none">{{ formatVal(op.strike, 'currency') }}</p>
+                    </div>
+
+                  </div>
+
+                <div class="grid grid-cols-3 gap-y-3 gap-x-6 border-t-[3px] border-slate-50 pt-6 mb-6">  
+                  <div class="flex flex-col">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">Prêmio Médio</span>
+                    <span class="text-slate-700 font-mono font-bold text-3xl">{{ formatVal(op.premioMedio, 'currency') }}</span>
+                  </div>
+                  <div class="flex flex-col text-center border-l-2 border-slate-100">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">Prêmio Atual</span>
+                    <span class="text-slate-700 font-mono font-bold text-3xl">{{ formatVal(op.premioAtual, 'currency') }}</span>
+                  </div>
+                  <div class="flex flex-col text-right border-l-2 border-slate-100">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">Break-Even</span>
+                    <span class="text-slate-700 font-mono font-bold text-3xl">{{ formatVal(op.breakEven || 0, 'currency') }}</span>
+                  </div>
+
+                  <div class="flex flex-col">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">Ganho Máximo</span>
+                    <span class="text-emerald-600 font-mono font-black text-3xl">{{ formatVal(op.ganhoMaximo, 'currency') }}</span>
+                  </div>
+
+                  <div class="flex flex-col text-center border-l-2 border-slate-100">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">P/L %</span>
+                    <span :class="Number(op.plTotalPct) >= 0 ? 'text-emerald-600' : 'text-red-600'" class="font-mono font-bold text-3xl">{{ formatVal(op.plTotalPct, 'pct') }}</span>
+                  </div>
+                  <div class="flex flex-col text-right border-l-2 border-slate-100">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">Lucro Máximo</span>
+                    <span class="text-slate-700 font-mono font-bold text-3xl">{{ formatVal(op.potencialLucroPct || 0, 'pct') }}</span>
+                  </div>
+
+                  <div class="flex flex-col">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">Delta</span>
+                    <span class="text-slate-700 font-mono font-bold text-3xl">{{ formatVal(op.delta, 'delta') }}</span>
+                  </div>
+                  <div class="flex flex-col text-center border-l-2 border-slate-100">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">POE</span>
+                    <span class="text-slate-700 font-mono font-bold text-3xl">{{ formatVal(op.probabilidadeSucesso, 'pct') }}</span>
+                  </div>
+                  <div class="flex flex-col text-right border-l-2 border-slate-100">
+                    <span class="text-slate-400 text-[13px] font-black uppercase mb-0.5 tracking-widest">Nocional</span>
+                    <span class="text-slate-800 font-mono font-black text-3xl">{{ formatVal(op.nocional, 'currency') }}</span>
+                  </div>
+                </div>
+
+                <div :class="getStyleContext(op).footerClass" class="mt-2 p-8 rounded-[48px] border-[4px] flex justify-between items-center shadow-2xl">
+                  <div class="flex flex-col min-w-0">
+                    <span class="text-lg font-black uppercase opacity-70 tracking-widest mb-3 truncate">Resultado Aberto</span>
+                    <div class="flex items-baseline gap-6">
+                      <span class="text-5xl font-black font-mono tracking-tighter whitespace-nowrap">{{ formatVal(op.plTotalValor, 'currency') }}</span>
+                      <span class="text-3xl font-bold font-mono opacity-60">({{ formatVal(op.plTotalPct, 'pct') }})</span>
+                    </div>
+                  </div>
+                  <div class="text-9xl filter drop-shadow-xl pr-4">{{ getStyleContext(op).icon }}</div>
+                </div>
+
               </div>
             </div>
-            <div>
-              <h4 class="text-[var(--m3-on-surface)] text-3xl font-black tracking-tighter leading-none">{{ getVal('Ticker') }}</h4>
-              <span class="text-slate-500 font-bold text-[10px] uppercase tracking-widest">{{ getVal('Código') }}</span>
-            </div>
-          </div>
-          <div class="flex flex-col items-end gap-2">
-            <span :class="tipoStyle" class="px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-tighter whitespace-nowrap shadow-sm">
-              {{ isVenda ? 'Venda' : 'Compra' }} {{ getVal('Tipo') }}
-            </span>
-            <div :class="styleContext.badge" class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest border uppercase">{{ getVal('Moneyness') }}</div>
-            <div class="flex flex-col items-end mt-1">
-              <span class="text-[8px] font-black uppercase opacity-40 leading-none mb-1">Quantidade</span>
-              <span class="text-base font-black font-mono text-slate-800 leading-none">{{ getVal('Quantidade') }}</span>
-            </div>
           </div>
         </div>
 
-        <div class="bg-slate-50 rounded-2xl border border-slate-100 p-3 mb-4 flex justify-between items-center">
-          <div class="text-center">
-            <p class="text-[8px] font-black uppercase text-slate-400">Strike</p>
-            <p class="text-xs font-mono font-bold text-slate-800">{{ formatMoeda(getVal('Strike')) }}</p>
-          </div>
-          <div class="h-4 w-[1px] bg-slate-200"></div>
-          <div class="text-center">
-            <p class="text-[8px] font-black uppercase text-slate-400">Dist. Spot</p>
-            <p :class="plClass" class="text-xs font-mono font-bold">{{ getVal('Dist') || '0.0%' }}</p>
-          </div>
-          <div class="h-4 w-[1px] bg-slate-200"></div>
-          <div class="text-center">
-            <p class="text-[8px] font-black uppercase text-slate-400">Spot Atual</p>
-            <p class="text-xs font-mono font-bold text-slate-800">{{ formatMoeda(getVal('Spot')) }}</p>
-          </div>
-        </div>
 
-        <div class="flex-1 grid grid-cols-3 gap-y-3 gap-x-4 border-t border-slate-100 pt-4 mb-4">
-          <div v-for="field in configFields.filter(f => !['QUANTIDADE', 'QTD'].includes(f.key))" :key="field.key" class="flex flex-col">
-            <span class="text-slate-400 text-[8px] font-black uppercase tracking-widest">{{ field.label }}</span>
-            <span class="text-slate-700 font-mono font-bold text-[11px]">
-              {{ field.key === 'GANHO MAXIMO' ? formatMoeda(getValExato('GANHO MAXIMO')) : formatValue(field, getVal(field.key)) }}
-            </span>
-          </div>
-        </div>
 
-        <div :class="['mt-auto p-4 rounded-2xl border flex justify-between items-center', styleContext.footer]">
-          <div class="flex flex-col">
-            <span class="text-[8px] font-black uppercase opacity-70 tracking-widest">P/L Total (R$ | %)</span>
-            <div class="flex items-baseline gap-2">
-              <span class="text-lg font-black font-mono tracking-tighter leading-none">{{ formatMoeda(getValExato('P/L TOTAL')) }}</span>
-              <span class="text-[11px] font-bold font-mono opacity-80">/ {{ formatValue({key:'P/L TOTAL %', type:'pct', label:'%'}, getValExato('P/L TOTAL %')) }}</span>
-            </div>
-          </div>
-          <div class="text-2xl">{{ styleContext.icon }}</div>
+
+
+
+
+
+
+
+
+        <div v-else class="flex overflow-x-auto pb-8 gap-6 snap-x snap-mandatory custom-scrollbar px-4">
+          <card-operacao v-for="(op, idx) in activeTrades" :key="op.tradeId || idx" :op="op"></card-operacao>
         </div>
       </div>
     </div>
   </template>
 
-  <template id="carousel-ativas-template">
-    <div class="col-span-12 mt-8 mb-12">
-      
-      <template v-if="!isMobile">
-        <div class="flex justify-between items-end mb-6 px-4">
-          <div>
-            <h3 class="text-[var(--m3-on-surface)] text-xl font-bold tracking-tight uppercase flex items-center">Detalhamento de Estruturas</h3>
-            <p class="text-[var(--m3-on-surface-variant)] text-[10px] uppercase tracking-[0.2em] font-bold mt-1">Por Operação</p>
-          </div>
-        </div>
+  <template id="card-operacao-template">
+    <div class="carousel-item flex-none w-[340px] snap-start">
+      <div :class="['bg-[var(--app-surface)] border-2 rounded-[32px] p-6 shadow-sm h-full flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1', styleContext.borderClass]">
         
-        <div class="flex overflow-x-auto pb-6 gap-6 snap-x snap-mandatory custom-scrollbar px-4" style="-webkit-overflow-scrolling: touch;">
-          <template v-if="!operations || operations.length === 0">
-            <div v-for="n in 8" :key="'skel-desk-'+n" class="carousel-item flex-none w-[320px] snap-start">
-              <div class="bg-white border border-slate-200 rounded-[28px] p-6 shadow-sm h-[420px] flex flex-col animate-pulse">
-                <div class="flex justify-between items-start mb-6"><div class="flex flex-col gap-3 w-1/2"><div class="h-3 bg-slate-200 rounded w-1/2"></div><div class="h-8 bg-slate-200 rounded w-3/4"></div><div class="h-3 bg-slate-200 rounded w-1/3"></div></div><div class="flex flex-col items-end gap-2 w-1/3"><div class="h-5 bg-slate-200 rounded-full w-full"></div><div class="h-5 bg-slate-200 rounded-full w-3/4"></div><div class="h-6 bg-slate-200 rounded w-1/2 mt-1"></div></div></div>
-                <div class="bg-slate-50 rounded-2xl border border-slate-100 h-[60px] mb-4"></div>
-                <div class="flex-1 grid grid-cols-3 gap-y-4 gap-x-4 border-t border-slate-100 pt-4 mb-4"><div v-for="i in 6" :key="i" class="flex flex-col gap-2"><div class="h-2 bg-slate-200 rounded w-2/3"></div><div class="h-4 bg-slate-200 rounded w-full"></div></div></div>
-                <div class="mt-auto h-[72px] bg-slate-100 rounded-2xl border border-slate-200"></div>
-              </div>
+        <div class="flex justify-between items-start mb-5">
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center space-x-2">
+              <h4 class="text-slate-900 text-4xl font-black tracking-tighter leading-none">{{ op.tickerAtivo || '--' }}</h4>
+              <span :class="tipoBadge" class="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
+                {{ String(op.direcaoTrade || '').charAt(0) }} {{ op.tipoOpcao }}
+              </span>
             </div>
-          </template>
-          <template v-else>
-            <card-operacao v-for="(op, idx) in operacoesOrdenadas" :key="idx" :op="op" :config-fields="configFields"></card-operacao>
-          </template>
-        </div>
-      </template>
-
-      <template v-else>
-        <div class="bg-slate-900 min-h-screen rounded-3xl pb-10 pt-4 -mx-4 px-4 shadow-inner border-t border-slate-800">
-          
-          <div class="mb-6 pt-2">
-            <h3 class="text-slate-100 text-2xl font-black tracking-tight flex items-center">Portfólio</h3>
-            <p class="text-slate-400 text-[11px] uppercase tracking-widest font-bold mt-1">Agrupado por Vencimento</p>
+            <div class="flex items-center space-x-2 mt-1">
+              <span class="text-slate-500 font-black text-xs uppercase tracking-widest">{{ op.simboloOpcao || '--' }}</span>
+              <span class="text-slate-300">|</span>
+              <span class="text-slate-600 font-bold text-[10px] uppercase tracking-widest">QTD: {{ formatVal(op.quantidade, 'number') }}</span>
+            </div>
           </div>
-
-          <template v-if="!operations || operations.length === 0">
-             <div v-for="n in 3" :key="'skel-mob-'+n" class="mb-8 animate-pulse">
-                <div class="h-4 bg-slate-800 rounded w-1/3 mb-3"></div>
-                <div class="flex gap-4 overflow-hidden">
-                   <div class="h-[120px] w-[260px] bg-slate-800 rounded-2xl flex-none"></div>
-                   <div class="h-[120px] w-[260px] bg-slate-800 rounded-2xl flex-none"></div>
-                </div>
-             </div>
-          </template>
-
-          <template v-else>
-            <div v-for="(opsDoVencimento, dataVencimento) in operacoesPorVencimento" :key="dataVencimento" class="mb-8">
-              
-              <div class="flex justify-between items-end mb-3 border-b border-slate-800 pb-2">
-                <h4 class="text-emerald-400 font-bold text-sm flex items-center gap-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  Vencimento: {{ dataVencimento }}
-                </h4>
-                <span class="text-slate-500 text-[10px] uppercase font-black tracking-widest bg-slate-800 px-2 py-1 rounded-md">
-                  {{ opsDoVencimento.length }} ativos
-                </span>
-              </div>
-
-              <div class="flex overflow-x-auto pb-4 gap-4 snap-x snap-mandatory custom-scrollbar-mobile -mx-4 px-4" style="-webkit-overflow-scrolling: touch;">
-                
-                <div v-for="(op, idx) in opsDoVencimento" :key="'mob-'+idx" 
-                     class="carousel-item flex-none w-[260px] snap-center bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-lg active:scale-95 transition-transform"
-                     @click="abrirBottomSheetMobile(op)">
-                  
-                  <div class="flex justify-between items-start mb-3">
-                    <div>
-                      <h5 class="text-slate-100 font-black text-xl leading-none mb-1">{{ getValMobile(op, 'Ticker') }}</h5>
-                      <span class="text-slate-400 text-[9px] uppercase tracking-widest font-bold">DTE: {{ getValMobile(op, 'DTE') }}</span>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-700 rounded-md px-2 py-1">
-                       <span class="text-[8px] font-black text-slate-300 uppercase tracking-widest block mb-0.5">P/L %</span>
-                       <span :class="(parseNumMobile(getValMobile(op, 'P/L TOTAL')) >= 0) ? 'text-emerald-400' : 'text-rose-400'" class="font-mono text-xs font-bold">
-                         {{ formatValueMobile('P/L TOTAL %', getValExatoMobile(op, 'P/L TOTAL %')) }}
-                       </span>
-                    </div>
-                  </div>
-
-                  <div class="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-end">
-                    <div>
-                      <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Strike</span>
-                      <p class="text-slate-300 text-xs font-mono">{{ formatMoedaMobile(getValMobile(op, 'Strike')) }}</p>
-                    </div>
-                    <div class="text-right">
-                      <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Spot</span>
-                      <p class="text-slate-300 text-xs font-mono">{{ formatMoedaMobile(getValMobile(op, 'Spot')) }}</p>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
+          
+          <div class="flex flex-col items-end gap-2">
+            <div :class="styleContext.badgeClass" class="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border uppercase shadow-sm">{{ op.moneynessCode || 'N/A' }}</div>
+            <div class="flex flex-col items-end mt-1 text-right">
+              <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Venc. ({{ op.dteCorridos }}d)</span>
+              <span class="text-sm font-black font-mono text-slate-700 leading-none">{{ formatVal(op.dataVencimento, 'date') }}</span>
             </div>
-          </template>
+          </div>
         </div>
-      </template>
 
+        <div class="bg-slate-50 rounded-2xl border border-slate-100 p-4 mb-5 flex justify-between items-center shadow-inner">
+          <div class="text-center flex-1"><p class="text-[9px] font-black uppercase text-slate-400 mb-1">Spot</p><p class="text-sm font-mono font-black text-slate-800">{{ formatVal(op.spotPrice, 'currency') }}</p></div>
+          <div class="h-8 w-[2px] bg-slate-200"></div>
+          <div class="text-center flex-1">
+            <p class="text-[9px] font-black uppercase text-slate-400 mb-1">Dist.</p>
+            <p :class="distanciaSpot >= 0 ? 'text-emerald-500' : 'text-red-500'" class="text-sm font-mono font-black bg-white px-2 py-0.5 rounded-lg border border-slate-100 shadow-sm inline-block">
+              {{ distanciaSpot > 0 ? '+' : '' }}{{ distanciaSpot.toFixed(1) }}%
+            </p>
+          </div>
+          <div class="h-8 w-[2px] bg-slate-200"></div>
+          <div class="text-center flex-1"><p class="text-[9px] font-black uppercase text-slate-400 mb-1">Strike</p><p class="text-sm font-mono font-black text-slate-800">{{ formatVal(op.strike, 'currency') }}</p></div>
+        </div>
+
+        <div class="flex-1 grid grid-cols-3 gap-y-4 border-t-2 border-slate-50 pt-5 mb-5">
+           <div class="flex flex-col"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">Prêmio Médio</span><span class="text-slate-700 font-mono font-bold text-xs">{{ formatVal(op.premioMedio, 'currency') }}</span></div>
+           <div class="flex flex-col text-center border-l border-slate-100"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">Prêmio Atual</span><span class="text-slate-700 font-mono font-bold text-xs">{{ formatVal(op.premioAtual, 'currency') }}</span></div>
+           <div class="flex flex-col text-right border-l border-slate-100"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">Break-Even</span><span class="text-slate-700 font-mono font-bold text-xs">{{ formatVal(op.breakEven || 0, 'currency') }}</span></div>
+           
+           <div class="flex flex-col"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">Ganho Máx.</span><span class="text-emerald-600 font-mono font-black text-xs">{{ formatVal(op.ganhoMaximo, 'currency') }}</span></div>
+           <div class="flex flex-col text-center border-l border-slate-100"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">P/L %</span><span :class="Number(op.plTotalPct) >= 0 ? 'text-emerald-600' : 'text-red-600'" class="font-mono font-bold text-xs">{{ formatVal(op.plTotalPct, 'pct') }}</span></div>
+           <div class="flex flex-col text-right border-l border-slate-100"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">Lucro Máx.</span><span class="text-slate-700 font-mono font-bold text-xs">{{ formatVal(op.potencialLucroPct || 0, 'pct') }}</span></div>
+
+           <div class="flex flex-col"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">Delta Δ</span><span class="text-slate-700 font-mono font-bold text-xs">{{ formatVal(op.delta, 'delta') }}</span></div>
+           <div class="flex flex-col text-center border-l border-slate-100"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">POE</span><span class="text-slate-700 font-mono font-bold text-xs">{{ formatVal(op.probabilidadeSucesso, 'pct') }}</span></div>
+           <div class="flex flex-col text-right border-l border-slate-100"><span class="text-slate-400 text-[8px] font-black uppercase mb-1">Nocional</span><span class="text-slate-800 font-mono font-black text-xs">{{ formatVal(op.nocional, 'currency') }}</span></div>
+        </div>
+
+        <div :class="['mt-auto p-5 rounded-[24px] border-2 flex justify-between items-center transition-colors', styleContext.footerClass]">
+          <div class="flex flex-col min-w-0">
+            <span class="text-[9px] font-black uppercase opacity-70 tracking-widest mb-1 truncate">Lucro / Prejuízo (Aberto)</span>
+            <div class="flex items-baseline gap-2">
+              <span class="text-2xl font-black font-mono tracking-tighter whitespace-nowrap">{{ formatVal(op.plTotalValor, 'currency') }}</span>
+              
+              <span class="text-sm font-bold font-mono opacity-60 whitespace-nowrap">
+                ({{ formatVal(op.plTotalPct, 'pct') }})
+              </span>
+            </div>
+          </div>
+          
+          <div class="text-4xl filter drop-shadow-sm ml-2 flex-shrink-0">{{ styleContext.icon }}</div>
+        </div>
+      </div>
     </div>
   </template>
 
-</div>
-
-<script>
-// 1. CARD DESKTOP (Intocado)
-window.CardOperacao = {
-  props: ['op', 'configFields'],
-  template: '#card-operacao-template',
-  computed: {
-    isVenda() { return String(this.getVal('VENDA/COMPRA') || '').toUpperCase().includes('VENDA'); },
-    tipoStyle() {
-      const tipo = String(this.getVal('Tipo')).toUpperCase(); const venda = this.isVenda;
-      if (venda && tipo.includes('PUT')) return 'bg-amber-100 text-amber-800 border-amber-200';
-      if (venda && tipo.includes('CALL')) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-      if (!venda && tipo.includes('PUT')) return 'bg-rose-100 text-rose-800 border-rose-200';
-      if (!venda && tipo.includes('CALL')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      return 'bg-slate-100 text-slate-800 border-slate-200';
-    },
-    styleContext() {
-      const m = String(this.getVal('MONEYNESS')).toUpperCase();
-      if (m.includes('ITM')) return { border: 'border-red-100', badge: 'bg-red-100 text-red-800 border-red-200', footer: 'bg-red-50 border-red-100 text-red-900', icon: '⚠️' };
-      if (m.includes('OTM')) return { border: 'border-emerald-100', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', footer: 'bg-emerald-50 border-emerald-100 text-emerald-900', icon: '✅' };
-      return { border: 'border-blue-100', badge: 'bg-blue-100 text-blue-800 border-blue-200', footer: 'bg-blue-50 border-blue-100 text-blue-900', icon: '🔵' };
-    },
-    plClass() { return this.parseNumVal(this.getVal('P/L TOTAL')) >= 0 ? 'text-emerald-600' : 'text-red-600'; }
-  },
-  methods: {
-    getVal(searchKey) {
-      if (!this.op) return '';
-      const keys = Object.keys(this.op);
-      const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
-      const target = norm(searchKey);
-      const foundKey = keys.find(k => norm(k).includes(target) || (target === 'QUANTIDADE' && norm(k) === 'QTD'));
-      let valor = foundKey ? this.op[foundKey] : '';
-      if (target === 'DIST') {
-        const strike = this.parseNumVal(this.getVal('STRIKE')); const spot = this.parseNumVal(this.getVal('SPOT'));
-        if (strike > 0 && spot > 0) { const d = ((spot / strike) - 1) * 100; return (d > 0 ? '+' : '') + d.toFixed(1) + '%'; }
+  <script>
+  const CardOperacao = {
+    props: { op: { type: Object, required: true } },
+    template: '#card-operacao-template',
+    computed: {
+      distanciaSpot() {
+        const strike = Number(this.op.strike) || 0;
+        const spot = Number(this.op.spotPrice) || 0;
+        return (strike === 0 || spot === 0) ? 0 : ((spot / strike) - 1) * 100;
+      },
+      tipoBadge() {
+        const t = String(this.op.tipoOpcao || '').toUpperCase();
+        const d = String(this.op.direcaoTrade || '').toUpperCase();
+        if (d.includes('VENDA') && t.includes('PUT')) return 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200';
+        if (d.includes('VENDA') && t.includes('CALL')) return 'bg-amber-100 text-amber-800 border-amber-200';
+        if (d.includes('COMPRA') && t.includes('PUT')) return 'bg-rose-100 text-rose-800 border-rose-200';
+        if (d.includes('COMPRA') && t.includes('CALL')) return 'bg-sky-100 text-sky-800 border-sky-200';
+        return 'bg-slate-100 text-slate-800 border-slate-200';
+      },
+      styleContext() {
+        const m = String(this.op.moneynessCode || '').toUpperCase();
+        const pct = Number(this.op.plTotalPct) || 0;
+        if (m.includes('ITM') && pct < 0) return { borderClass: 'border-red-200 bg-red-50/10', badgeClass: 'bg-red-500 text-white border-red-600 animate-pulse', footerClass: 'bg-red-50 border-red-100 text-red-900', icon: '' };
+        if (m.includes('ITM') || m.includes('ATM')) return { borderClass: 'border-amber-200 bg-amber-50/10', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300', footerClass: 'bg-amber-50 border-amber-100 text-amber-900', icon: '' };
+        return { borderClass: 'border-emerald-200 bg-emerald-50/10', badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300', footerClass: 'bg-emerald-50 border-emerald-100 text-emerald-900', icon: '' };
       }
-      return valor;
     },
-    getValExato(targetKey) {
-      if (!this.op) return '';
-      const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
-      const foundKey = Object.keys(this.op).find(k => norm(k) === norm(targetKey));
-      return foundKey ? this.op[foundKey] : '';
-    },
-    parseNumVal(v) {
-      if (typeof v === 'number') return v;
-      return parseFloat(String(v || '0').replace(/[R$.%]/g, '').replace(',', '.').trim()) || 0;
-    },
-    formatValue(field, val) {
-      if (!val && val !== 0) return '-';
-      const n = this.parseNumVal(val);
-      if (field.type === 'moeda') return this.formatMoeda(val);
-      if (field.key === 'DELTA') return n.toFixed(4);
-      if (field.label.includes('Máx') || field.type === 'pct' || field.key.includes('PCT')) return n.toFixed(2).replace('.', ',') + ' %';
-      return val;
-    },
-    formatMoeda(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(this.parseNumVal(v)); }
-  }
-};
+    methods: {
+      formatVal(val, type) {
+        if (!val && val !== 0) return '--';
+        if (type === 'date') return val instanceof Date ? val.toLocaleDateString('pt-BR') : String(val).split(' ')[0];
+        const num = Number(val);
+        if (isNaN(num)) return val;
+        if (type === 'currency') return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+        if (type === 'number') return new Intl.NumberFormat('pt-BR').format(num);
+        if (type === 'pct') return (num * 100).toFixed(2).replace('.', ',') + '%';
+        if (type === 'delta') return num.toFixed(4).replace('.', ',');
+        return val;
+      }
+    }
+  };
 
-// 2. CARROSSEL PAI (Com Inteligência Mobile)
-const CarouselAtivas = {
-  components: { 'card-operacao': CardOperacao },
-  props: { operations: { type: Array, default: () => [] } },
-  template: '#carousel-ativas-template',
-  data() {
-    return {
-      isMobile: true, // LIGANDO O MODO MOBILE À FORÇA PARA TESTE!
-      configFields: [
-        { key: 'QUANTIDADE', label: 'Qtd', type: 'num' }, { key: 'PRÊMIO (PM)', label: 'PM', type: 'moeda' }, { key: 'PRÊMIO ATUAL', label: 'Atual', type: 'moeda' },
-        { key: 'P/L TOTAL %', label: 'P/L %', type: 'pct' }, { key: 'GANHO MAXIMO', label: 'Ganho Máx', type: 'currency' }, { key: 'LUCRO MAX', label: 'Lucro Máx', type: 'currency' },
-        { key: 'NOCIONAL', label: 'Nocional', type: 'moeda' }, { key: 'BREAK-EVEN', label: 'BREAK-EVEN', type: 'moeda' }, { key: 'DELTA', label: 'Delta Δ', type: 'num' }
-      ]
+  window.CarouselAtivas = {
+    components: { 'card-operacao': CardOperacao },
+    props: { isMobile: Boolean, isLoading: Boolean, statsPreCalculados: Object },
+    template: '#carousel-ativas-template',
+    computed: {
+      activeTrades() {
+        const lista = this.statsPreCalculados?.listaAtivas || [];
+        return [...lista].sort((a, b) => (a.dteCorridos || 999) - (b.dteCorridos || 999));
+      },
+      // 1. Adicione esta propriedade computada em window.CarouselAtivas
+      operacoesPorVencimento() {
+        if (!this.activeTrades.length) return {};
+        return this.activeTrades.reduce((acc, op) => {
+          const venc = this.formatVal(op.dataVencimento, 'date');
+          if (!acc[venc]) acc[venc] = [];
+          acc[venc].push(op);
+          return acc;
+        }, {});
+      },
+      opsOTM() { return this.activeTrades.filter(op => String(op.moneynessCode).toUpperCase().includes('OTM')).length; },
+      opsITM() { return this.activeTrades.filter(op => String(op.moneynessCode).toUpperCase().includes('ITM')).length; }
+    },
+    methods: {
+      formatVal(val, type) {
+        return CardOperacao.methods.formatVal(val, type);
+      },
+      getStyleContext(op) {
+        const m = String(op.moneynessCode || '').toUpperCase();
+        const pct = Number(op.plTotalPct) || 0;
+        if (m.includes('ITM') && pct < 0) return { borderClass: 'border-red-200 bg-red-50/10', badgeClass: 'bg-red-500 text-white border-red-600', footerClass: 'bg-red-50 border-red-100 text-red-900', icon: '' };
+        if (m.includes('ITM') || m.includes('ATM')) return { borderClass: 'border-amber-200 bg-amber-50/10', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300', footerClass: 'bg-amber-50 border-amber-100 text-amber-900', icon: '' };
+        return { borderClass: 'border-emerald-200 bg-emerald-50/10', badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300', footerClass: 'bg-emerald-50 border-emerald-100 text-emerald-900', icon: '' };
+      },
+      getTipoBadgeClass(op) {
+        const t = String(op.tipoOpcao || '').toUpperCase();
+        const d = String(op.direcaoTrade || '').toUpperCase();
+        if (d.includes('VENDA') && t.includes('PUT')) return 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200';
+        if (d.includes('VENDA') && t.includes('CALL')) return 'bg-amber-100 text-amber-800 border-amber-200';
+        if (d.includes('COMPRA') && t.includes('PUT')) return 'bg-rose-100 text-rose-800 border-rose-200';
+        if (d.includes('COMPRA') && t.includes('CALL')) return 'bg-sky-100 text-sky-800 border-sky-200';
+        return 'bg-slate-100 text-slate-800 border-slate-200';
+      }
+    },
+    mounted() {
+      console.log("📊 Carousel V5 Ativo");
     }
-  },
-  mounted() {
-    // Liga o radar: Se a tela for menor que 768px (Tablets/Celulares), vira Mobile.
-    this.checkMobile();
-    window.addEventListener('resize', this.checkMobile);
-  },
-  beforeUnmount() {
-    window.removeEventListener('resize', this.checkMobile);
-  },
-  computed: {
-    operacoesOrdenadas() {
-      if (!this.operations || this.operations.length === 0) return [];
-      return [...this.operations].sort((a, b) => {
-        const dateA = this.parseDateMobile(this.getValMobile(a, 'Vencimento'));
-        const dateB = this.parseDateMobile(this.getValMobile(b, 'Vencimento'));
-        if (dateA - dateB !== 0) return dateA - dateB;
-        return String(this.getValMobile(a, 'Ticker') || '').localeCompare(String(this.getValMobile(b, 'Ticker') || ''));
-      });
-    },
-    // 🔥 A MÁGICA DO AGRUPAMENTO (OTM Dash Style)
-    operacoesPorVencimento() {
-      const grupos = {};
-      this.operacoesOrdenadas.forEach(op => {
-        const venc = this.getValMobile(op, 'Vencimento') || 'Sem Data';
-        if (!grupos[venc]) grupos[venc] = [];
-        grupos[venc].push(op);
-      });
-      return grupos;
-    }
-  },
-  methods: {
-    checkMobile() {
-      this.isMobile = window.innerWidth < 768; // Detecção de tela
-    },
-    abrirBottomSheetMobile(op) {
-      console.log("Preparando para abrir a Bottom Sheet com a operação:", this.getValMobile(op, 'Ticker'));
-    },
-    
-    getValMobile(op, searchKey) {
-      if (!op) return '';
-      const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
-      const foundKey = Object.keys(op).find(k => norm(k).includes(norm(searchKey)));
-      return foundKey ? op[foundKey] : '';
-    },
-    getValExatoMobile(op, targetKey) {
-      if (!op) return '';
-      const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
-      const foundKey = Object.keys(op).find(k => norm(k) === norm(targetKey));
-      return foundKey ? op[foundKey] : '';
-    },
-    parseNumMobile(v) {
-      return parseFloat(String(v || '0').replace(/[R$.%]/g, '').replace(',', '.').trim()) || 0;
-    },
-    formatMoedaMobile(v) {
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(this.parseNumMobile(v));
-    },
-    formatValueMobile(chave, val) {
-       const n = this.parseNumMobile(val);
-       return n.toFixed(2).replace('.', ',') + ' %';
-    },
-    parseDateMobile(str) {
-      if (!str) return new Date(2099, 1, 1);
-      const p = String(str).split('/');
-      return p.length < 3 ? new Date(2099, 1, 1) : new Date(p[2], p[1]-1, p[0]);
-    }
-  }
-};
-</script>
+  };
+  </script>
+</div>
