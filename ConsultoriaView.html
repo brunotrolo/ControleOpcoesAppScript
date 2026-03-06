@@ -293,11 +293,16 @@
 </template>
 
 <script>
+
+// 🚀 CACHE GLOBAL DE MOEDA PARA ALTA PERFORMANCE
+const consultoriaCurrencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 window.ConsultoriaView = {
   props: {
-    operations: { type: Array, default: () => [] },
     isMobile: Boolean,  // 📱 Adicionar esta
-    isLoading: Boolean  // 🚀 Adicionar esta
+    isLoading: Boolean,  // 🚀 Adicionar esta
+    statsPreCalculados: Object, // 🚀 Recebe a maleta do Agregador
+    historico: { type: Array, default: () => [] }
   },
   template: '#consultoria-view-template',
   data() {
@@ -318,6 +323,12 @@ window.ConsultoriaView = {
 
 
   computed: {
+
+    // 🚀 O componente acha que 'operations' é uma prop, mas é a nossa gaveta de ativas!
+    operations() {
+      return this.statsPreCalculados?.listaAtivas || [];
+    },
+
     // 1. Filtra e ordena os cards na tela
     operacoesOrdenadas() {
       if (!this.operations || this.operations.length === 0) return [];
@@ -382,13 +393,28 @@ window.ConsultoriaView = {
     },
 
     // --- LÓGICA DE DADOS (Adaptada para receber 'op' como parâmetro) ---
-    getVal(op, searchKey) {
-      if (!op) return '';
-      const keys = Object.keys(op);
-      const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
-      const target = norm(searchKey);
-      const foundKey = keys.find(k => norm(k).includes(target) || (target === 'QUANTIDADE' && norm(k) === 'QTD'));
-      return foundKey ? op[foundKey] : '';
+    // Traduz a chave do Design para a chave do Backend
+    getVal(op, key) {
+      if (!op) return null;
+      
+      const dicionarioV5 = {
+        'Ticker': 'tickerAtivo',
+        'Código': 'simboloOpcao',
+        'Spot': 'spotPrice',
+        'Strike': 'strike',
+        'IFR14': 'ifr14',           // Nomes que vêm do robô de Gregas/Indicadores
+        'MMA5': 'mma5',
+        'MMA20': 'mma20',
+        'MMA200': 'mma200',
+        'Banda_Inf': 'bandaInf',
+        'Banda_Sup': 'bandaSup',
+        'Vol_Relativa': 'volRelativa'
+      };
+      
+      const chaveCorreta = dicionarioV5[key] || key;
+      
+      // Tenta a chave nova do V5 primeiro. Se não achar, tenta a bruta.
+      return op[chaveCorreta] !== undefined ? op[chaveCorreta] : (op[key] !== undefined ? op[key] : null);
     },
     
     getValExato(op, targetKey) {
@@ -499,9 +525,9 @@ window.ConsultoriaView = {
       const num = parseFloat(String(val).replace(/[R$.%]/g, '').replace(',', '.'));
       if (isNaN(num)) return val; // Se for texto, devolve o texto intacto
 
-      // Se for as Médias (MMA5, MMA20, MMA200) ou Bandas, formata como Moeda
+      // Se for as Médias (MMA5, MMA20, MMA200) ou Bandas, formata como Moeda (USANDO O CACHE)
       if (isCurrency) {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+        return consultoriaCurrencyFormatter.format(num);
       }
       
       // Se for IFR14, Vol_Relativo ou Largura da Banda, usa 2 casas decimais
@@ -536,7 +562,8 @@ window.ConsultoriaView = {
     },
     
     formatMoeda(v) {
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(this._parseNum(v));
+      // 🚀 USANDO O CACHE (SEM CRIAR 'NEW' A CADA CHAMADA)
+      return consultoriaCurrencyFormatter.format(this._parseNum(v));
     },
 
 
@@ -545,7 +572,7 @@ window.ConsultoriaView = {
       if (this.operacoesOrdenadas.length === 0) return;
       
       this.loadingIA = true;
-      console.log("Iniciando auditoria IA para", this.operacoesOrdenadas.length, "ativos...");
+      // LOG REMOVIDO PARA PERFORMANCE
 
       // 1. Prepara o pacote (Remove a reatividade do Vue para viajar limpo pela rede)
       const payload = JSON.parse(JSON.stringify(this.operacoesOrdenadas));
@@ -576,15 +603,13 @@ window.ConsultoriaView = {
             });
 
             localStorage.setItem(cacheKey, JSON.stringify(cacheAtual));
-            // ----------------------------------
-
-            console.log("✅ Auditoria salva no cache do navegador.");
+            // LOG REMOVIDO PARA PERFORMANCE
           }
         })
 
         .withFailureHandler((erroCritico) => {
           this.loadingIA = false;
-          console.error("Falha crítica de comunicação com o servidor:", erroCritico);
+          // Deixamos o alert, mas removemos o console.error que trava a UI
           alert("Erro crítico: O servidor demorou muito a responder ou está indisponível.");
         })
         .apiAnalisarOperacoesAtivas(payload); // Chama a função do seu novo arquivo 011!

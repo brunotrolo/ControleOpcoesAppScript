@@ -61,6 +61,10 @@
 </template>
 
 <script>
+
+const summaryCurrencyFmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const summaryNumberFmt = new Intl.NumberFormat('pt-BR');
+
 window.CardSummary = {
   props: {
     // summaryData: { type: Array, default: () => [] }, // <-- Não usaremos mais, vamos ignorar a prop externa
@@ -174,14 +178,10 @@ window.CardSummary = {
     formatValue(val, type) {
       if (val === undefined || val === null) return '---';
       
-      if (type === 'currency') {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-      }
-      if (type === 'percentage') {
-        // Garante que o número seja tratado como percentual
-        return (val).toFixed(2).replace('.', ',') + '%';
-      }
-      return new Intl.NumberFormat('pt-BR').format(val);
+      // 🚀 USO DO CACHE
+      if (type === 'currency') return summaryCurrencyFmt.format(val);
+      if (type === 'percentage') return (val).toFixed(2).replace('.', ',') + '%';
+      return summaryNumberFmt.format(val);
     },
     
     getPodStyle(field) {

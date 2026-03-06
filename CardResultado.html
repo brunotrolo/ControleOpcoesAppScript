@@ -2,26 +2,21 @@
   <div v-if="isMobile" class="w-full bg-white border border-slate-200 rounded-[32px] pt-6 px-6 pb-8 shadow-sm flex flex-col h-full relative overflow-hidden">
     
     <div class="absolute bottom-0 left-0 w-full h-6 flex z-20 font-mono font-black text-[15px] text-white drop-shadow-md">
-      
-      <div :style="{ width: stats.pctLucro + '%' }" class="h-full bg-emerald-500 shadow-[0_-5px_15px_rgba(16,185,129,0.2)] transition-all duration-1000 flex items-center justify-center overflow-hidden">
+      <div :style="{ width: (stats.pctLucro || 0) + '%' }" class="h-full bg-emerald-500 shadow-[0_-5px_15px_rgba(16,185,129,0.2)] transition-all duration-1000 flex items-center justify-center overflow-hidden">
         <span v-if="stats.pctLucro > 0" class="leading-none pt-0.5">{{ stats.pctLucro }}%</span>
       </div>
-      
-      <div :style="{ width: stats.pctBreakeven + '%' }" class="h-full bg-slate-400 transition-all duration-1000 flex items-center justify-center overflow-hidden">
+      <div :style="{ width: (stats.pctBreakeven || 0) + '%' }" class="h-full bg-slate-400 transition-all duration-1000 flex items-center justify-center overflow-hidden">
         <span v-if="stats.pctBreakeven > 0" class="text-slate-900 leading-none pt-0.5">{{ stats.pctBreakeven }}%</span>
       </div>
-      
-      <div :style="{ width: stats.pctPrejuizo + '%' }" class="h-full bg-red-500 shadow-[0_-5px_15px_rgba(239,68,68,0.2)] transition-all duration-1000 flex items-center justify-center overflow-hidden">
+      <div :style="{ width: (stats.pctPrejuizo || 0) + '%' }" class="h-full bg-red-500 shadow-[0_-5px_15px_rgba(239,68,68,0.2)] transition-all duration-1000 flex items-center justify-center overflow-hidden">
         <span v-if="stats.pctPrejuizo > 0" class="leading-none pt-0.5">{{ stats.pctPrejuizo }}%</span>
       </div>
-
     </div>
 
     <div class="flex flex-col h-full relative z-10">
       
       <div class="flex flex-col mb-4">
         <h3 class="text-slate-900 font-black tracking-tighter uppercase text-3xl leading-none">Resultado</h3>
-        
         <div class="flex items-center mt-2 space-x-2">
           <span class="text-slate-400 uppercase tracking-[0.2em] font-bold text-[10px]">Performance Total</span>
           <template v-if="!isLoading && stats.total > 0">
@@ -55,29 +50,28 @@
           </div>
 
           <div class="flex items-center justify-around px-1 mt-2">
-            
             <div class="flex flex-col items-center w-1/3">
               <span class="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Lucro</span>
               <span class="text-emerald-500 font-mono font-black text-[72px] tracking-[-0.05em] leading-none drop-shadow-sm">
-                {{ stats.lucro }}
+                {{ stats.lucro || 0 }}
               </span>
             </div>
 
             <div class="flex flex-col items-center w-1/3">
               <span class="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Empate</span>
               <span class="text-slate-400 font-mono font-black text-[56px] tracking-[-0.05em] leading-none drop-shadow-sm">
-                {{ stats.breakeven }}
+                {{ stats.breakeven || 0 }}
               </span>
             </div>
 
             <div class="flex flex-col items-center w-1/3">
               <span class="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Prejuízo</span>
               <span class="text-red-500 font-mono font-black text-[72px] tracking-[-0.05em] leading-none drop-shadow-sm">
-                {{ stats.prejuizo }}
+                {{ stats.prejuizo || 0 }}
               </span>
             </div>
-
           </div>
+
         </div>
       </template>
 
@@ -111,24 +105,24 @@
       <div class="relative mb-4">
         <div class="flex justify-between items-end mb-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest px-1">
           <span class="text-slate-500">Performance</span>
-          <span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">{{ stats.pctLucro }}% NO LUCRO</span>
+          <span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">{{ stats.pctLucro || 0 }}% NO LUCRO</span>
         </div>
         
         <div class="w-full h-5 bg-slate-100 rounded-full overflow-hidden flex shadow-inner border border-slate-200 p-1">
-          <div :style="{ width: stats.pctLucro + '%' }" class="h-full bg-emerald-600 rounded-l-full transition-all duration-1000 border-r border-white/20"></div>
-          <div :style="{ width: stats.pctBreakeven + '%' }" class="h-full bg-slate-400 transition-all duration-1000 border-r border-white/20"></div>
-          <div :style="{ width: stats.pctPrejuizo + '%' }" class="h-full bg-red-600 rounded-r-full transition-all duration-1000"></div>
+          <div :style="{ width: (stats.pctLucro || 0) + '%' }" class="h-full bg-emerald-600 rounded-l-full transition-all duration-1000 border-r border-white/20"></div>
+          <div :style="{ width: (stats.pctBreakeven || 0) + '%' }" class="h-full bg-slate-400 transition-all duration-1000 border-r border-white/20"></div>
+          <div :style="{ width: (stats.pctPrejuizo || 0) + '%' }" class="h-full bg-red-600 rounded-r-full transition-all duration-1000"></div>
         </div>
 
         <div class="flex justify-between space-x-1 text-[8px] font-black uppercase mt-2">
           <div class="flex-1 flex justify-center items-center text-emerald-700 bg-emerald-50/50 py-1 rounded-lg border border-emerald-50">
-            <span class="w-1.5 h-1.5 bg-emerald-600 rounded-full mr-1"></span> {{ stats.lucro }}  ㅤGANHANDO
+            <span class="w-1.5 h-1.5 bg-emerald-600 rounded-full mr-1"></span> {{ stats.lucro || 0 }}  ㅤGANHANDO
           </div>
           <div class="flex-1 flex justify-center items-center text-slate-600 bg-slate-50/50 py-1 rounded-lg border border-slate-100">
-            <span class="w-1.5 h-1.5 bg-slate-400 rounded-full mr-1"></span> {{ stats.breakeven }}  ㅤEMPATE
+            <span class="w-1.5 h-1.5 bg-slate-400 rounded-full mr-1"></span> {{ stats.breakeven || 0 }}  ㅤEMPATE
           </div>
           <div class="flex-1 flex justify-center items-center text-red-700 bg-red-50/50 py-1 rounded-lg border border-red-50">
-            <span class="w-1.5 h-1.5 bg-red-600 rounded-full mr-1"></span> {{ stats.prejuizo }}  ㅤPERDENDO
+            <span class="w-1.5 h-1.5 bg-red-600 rounded-full mr-1"></span> {{ stats.prejuizo || 0 }}  ㅤPERDENDO
           </div>
         </div>
       </div>
@@ -137,14 +131,14 @@
         <div class="bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100 flex flex-col items-center">
           <span class="text-emerald-700/70 text-[8px] md:text-[9px] font-black uppercase tracking-widest mb-1">Lucro</span>
           <div class="flex items-baseline space-x-1">
-            <span class="text-emerald-800 font-mono font-black text-sm md:text-lg">{{ stats.pctLucro }}</span>
+            <span class="text-emerald-800 font-mono font-black text-sm md:text-lg">{{ stats.pctLucro || 0 }}</span>
             <span class="text-emerald-600 text-[10px] font-bold">%</span>
           </div>
         </div>
         <div class="bg-red-50/50 p-3 rounded-2xl border border-red-100 flex flex-col items-center">
           <span class="text-red-700/70 text-[8px] md:text-[9px] font-black uppercase tracking-widest mb-1">Prejuízo</span>
           <div class="flex items-baseline space-x-1">
-            <span class="text-red-800 font-mono font-black text-sm md:text-lg">{{ stats.pctPrejuizo }}</span>
+            <span class="text-red-800 font-mono font-black text-sm md:text-lg">{{ stats.pctPrejuizo || 0 }}</span>
             <span class="text-red-600 text-[10px] font-bold">%</span>
           </div>
         </div>
@@ -157,16 +151,17 @@
 window.CardResultado = {
   props: {
     isMobile: Boolean,
-    statsPreCalculados: Object, // V5: Recebe apenas o Cubo
+    statsPreCalculados: Object,
     isLoading: Boolean
   },
   template: '#card-resultado-template',
   computed: {
     stats() {
-      // V5: Busca direto na gaveta nova do Agregador
-      const stats = this.statsPreCalculados?.resultadoStats;
-      
-      return stats;
+      // 🛡️ TRAVA DE SEGURANÇA: Se o Cubo não chegou ou está vazio, devolve zeros perfeitos
+      if (!this.statsPreCalculados || !this.statsPreCalculados.resultadoStats) {
+        return { lucro: 0, breakeven: 0, prejuizo: 0, total: 0, pctLucro: 0, pctBreakeven: 0, pctPrejuizo: 0 };
+      }
+      return this.statsPreCalculados.resultadoStats;
     },
     
     // LED Integrado para o Mobile e Desktop

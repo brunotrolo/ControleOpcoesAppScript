@@ -128,52 +128,62 @@ window.Agregador = {
         .sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
   },
 
-  _calcularConcentracao(tradesAtivos) {
-    const mapaConcentracao = tradesAtivos.reduce((acc, trade) => {
-        const ticker = trade.tickerAtivo || 'DESCONHECIDO';
-        
-        if (!acc[ticker]) {
-            acc[ticker] = { 
-                ticker: ticker, 
-                nocionalAlocado: 0, 
-                lucroProjetado: 0, 
-                plAtual: 0, 
-                operacoes: 0 
-            };
-        }
-        
-        acc[ticker].operacoes += 1;
-        // Chaves Harmonizadas com o Tradutor V5:
-        acc[ticker].nocionalAlocado += (trade.nocionalTotal || 0);
-        acc[ticker].lucroProjetado += (trade.ganhoMaximo || 0);
-        acc[ticker].plAtual += (trade.plTotalValor || 0);
-        
-        return acc;
-    }, {});
 
-    // Retorna ordenado por maior Nocional (Risco de Cauda)
-    return Object.values(mapaConcentracao).sort((a, b) => b.nocionalAlocado - a.nocionalAlocado);
-  },
+  _calcularConcentracao(trades) {
+    if (!trades || trades.length === 0) return [];
 
-  _calcularResultados(tradesAtivos) {
-    let lucroQtd = 0, prejuQtd = 0, breakQtd = 0;
-    const total = tradesAtivos.length;
+    let totalGeral = 0;
+    const mapa = {};
 
-    if (total === 0) return this._gerarCuboVazio().performanceStats;
-
-    tradesAtivos.forEach(op => {
-      const pl = op.plTotalValor || 0;
-      if (pl > 0.01) lucroQtd++;
-      else if (pl < -0.01) prejuQtd++;
-      else breakQtd++;
+    // 🚀 Passagem Única (O(n) de performance)
+    trades.forEach(t => {
+      const ativo = t.tickerAtivo || 'DESCONHECIDO';
+      // Busca a exposição financeira correta
+      const nocional = parseFloat(t.nocional) || parseFloat(t.nocionalTotal) || 0; 
+      
+      if (!mapa[ativo]) mapa[ativo] = { nocional: 0, ops: 0 };
+      
+      mapa[ativo].nocional += nocional;
+      mapa[ativo].ops += 1;
+      totalGeral += nocional;
     });
 
-    const pctLucro = Math.round((lucroQtd / total) * 100);
-    
+    // Converte, calcula a % de peso da carteira e ordena pelo maior risco
+    return Object.keys(mapa)
+      .map(ativo => ({
+        ativo: ativo,
+        nocional: mapa[ativo].nocional, // Financeiro (Para o Card)
+        qtdOps: mapa[ativo].ops,        // Quantidade de tiros
+        pesoPct: totalGeral > 0 ? Math.round((mapa[ativo].nocional / totalGeral) * 100) : 0
+      }))
+      .sort((a, b) => b.nocional - a.nocional);
+  },
+
+
+  _calcularResultados(trades) {
+    const padrao = { lucro: 0, prejuizo: 0, breakeven: 0, total: 0, pctLucro: 0, pctPrejuizo: 0, pctBreakeven: 0, performanceKey: 'AGUARDANDO' };
+    if (!trades || trades.length === 0) return padrao;
+
+    let lucro = 0, prejuizo = 0, breakeven = 0;
+
+    trades.forEach(t => {
+      const pl = parseFloat(t.plTotalValor) || 0; 
+      
+      if (pl > 0.01) lucro++;
+      else if (pl < -0.01) prejuizo++;
+      else breakeven++;
+    });
+
+    const total = lucro + prejuizo + breakeven;
+    if (total === 0) return padrao;
+
+    const pctLucro = Math.round((lucro / total) * 100);
+
     return {
-      noLucro: { qtd: lucroQtd, pct: pctLucro },
-      noPrejuizo: { qtd: prejuQtd, pct: Math.round((prejuQtd / total) * 100) },
-      noBreakeven: { qtd: breakQtd, pct: Math.round((breakQtd / total) * 100) },
+      lucro, prejuizo, breakeven, total,
+      pctLucro,
+      pctPrejuizo: Math.round((prejuizo / total) * 100),
+      pctBreakeven: Math.round((breakeven / total) * 100),
       performanceKey: (pctLucro >= 60) ? 'ALTA' : (pctLucro >= 40 ? 'ESTAVEL' : 'CRITICA')
     };
   },
@@ -202,32 +212,6 @@ window.Agregador = {
           statusKey: (totalOtm / total) >= 0.8 ? 'BLINDADO' : (totalOtm / total) >= 0.5 ? 'CONTROLADO' : 'ALERTA'
       };
     },
-
-    _calcularResultados(trades) {
-    if (!trades || trades.length === 0) {
-      return { lucro: 0, prejuizo: 0, breakeven: 0, total: 0, pctLucro: 0, pctPrejuizo: 0, pctBreakeven: 0 };
-    }
-
-    let lucro = 0, prejuizo = 0, breakeven = 0;
-
-    trades.forEach(t => {
-      // Usa a chave oficial de P/L que definimos no Tradutor
-      const pl = parseFloat(t.plTotalValor) || 0; 
-      
-      if (pl > 0) lucro++;
-      else if (pl < 0) prejuizo++;
-      else breakeven++;
-    });
-
-    const total = lucro + prejuizo + breakeven;
-
-    return {
-      lucro, prejuizo, breakeven, total,
-      pctLucro: Math.round((lucro / total) * 100),
-      pctPrejuizo: Math.round((prejuizo / total) * 100),
-      pctBreakeven: Math.round((breakeven / total) * 100)
-    };
-  },
 
   _calcularMoneynessPorTipo(trades) {
     const padrao = { itm: 0, atm: 0, otm: 0, total: 0 };
@@ -285,32 +269,6 @@ window.Agregador = {
         pctMedio: Math.round((medio / total) * 100),
         pctLongo: Math.round((longo / total) * 100)
       };
-    },
-
-  _calcularConcentracao(trades) {
-      if (!trades || trades.length === 0) return [];
-
-      let totalGeral = 0;
-      const mapa = {};
-
-      trades.forEach(t => {
-        // Usa a chave do Tradutor
-        const ativo = t.tickerAtivo || 'N/A';
-        const valor = 1; // Contando 1 por operação. Mude para t.nocional se quiser exposição financeira.
-        
-        if (!mapa[ativo]) mapa[ativo] = 0;
-        mapa[ativo] += valor;
-        totalGeral += valor;
-      });
-
-      // Converte para array, calcula % e ordena do maior para o menor
-      return Object.keys(mapa)
-        .map(ativo => ({
-          ativo,
-          nocional: mapa[ativo], // Representa a contagem de operações neste caso
-          pesoPct: totalGeral > 0 ? Math.round((mapa[ativo] / totalGeral) * 100) : 0
-        }))
-        .sort((a, b) => b.nocional - a.nocional);
     },
 
   _enriquecerDados(trades, greeks) {

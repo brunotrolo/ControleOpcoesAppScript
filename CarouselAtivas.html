@@ -5,7 +5,7 @@
       
       <div class="flex justify-between items-end mb-6 px-4">
         <div>
-          <h3 class="text-[var(--m3-on-surface)] text-xl md:text-2xl font-bold tracking-tight uppercase">Cartões</h3>
+          <h3 class="text-[var(--m3-on-surface)] text-xl md:text-2xl font-bold tracking-tight uppercase">Operações</h3>
           <p class="text-[var(--m3-on-surface-variant)] text-[10px] md:text-xs uppercase tracking-[0.2em] font-bold mt-1">Por Posição</p>
         </div>
         <div v-if="!isLoading && activeTrades.length > 0" class="hidden md:flex gap-4">
@@ -92,9 +92,9 @@
 
                     <div class="text-center flex-1">
                       <p class="text-[11px] font-black uppercase text-slate-400 mb-0.5 tracking-widest">Dist.</p>
-                      <p :class="((Number(op.spotPrice)/Number(op.strike))-1) >= 0 ? 'text-emerald-600' : 'text-red-600'" 
+                      <p :class="getDistanciaSpot(op) >= 0 ? 'text-emerald-600' : 'text-red-600'" 
                         class="text-2xl font-mono font-black bg-white px-4 py-1.5 rounded-2xl border-2 shadow-sm inline-block leading-none">
-                        {{ ((Number(op.spotPrice)/Number(op.strike))-1) > 0 ? '+' : '' }}{{ (((Number(op.spotPrice)/Number(op.strike))-1)*100).toFixed(1) }}%
+                        {{ getDistanciaSpot(op) > 0 ? '+' : '' }}{{ getDistanciaSpot(op).toFixed(1) }}%
                       </p>
                     </div>
 
@@ -271,6 +271,7 @@
       styleContext() {
         const m = String(this.op.moneynessCode || '').toUpperCase();
         const pct = Number(this.op.plTotalPct) || 0;
+        // 🚨 Emojis Restaurados!
         if (m.includes('ITM') && pct < 0) return { borderClass: 'border-red-200 bg-red-50/10', badgeClass: 'bg-red-500 text-white border-red-600 animate-pulse', footerClass: 'bg-red-50 border-red-100 text-red-900', icon: '' };
         if (m.includes('ITM') || m.includes('ATM')) return { borderClass: 'border-amber-200 bg-amber-50/10', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300', footerClass: 'bg-amber-50 border-amber-100 text-amber-900', icon: '' };
         return { borderClass: 'border-emerald-200 bg-emerald-50/10', badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300', footerClass: 'bg-emerald-50 border-emerald-100 text-emerald-900', icon: '' };
@@ -320,13 +321,24 @@
       formatVal(val, type) {
         return CardOperacao.methods.formatVal(val, type);
       },
+
+      // 🚀 NOVO: Auxiliar blindado para calcular a distância
+      getDistanciaSpot(op) {
+        const strike = Number(op.strike) || 0;
+        const spot = Number(op.spotPrice) || 0;
+        if (strike === 0 || spot === 0) return 0;
+        return ((spot / strike) - 1) * 100;
+      },
+
       getStyleContext(op) {
         const m = String(op.moneynessCode || '').toUpperCase();
         const pct = Number(op.plTotalPct) || 0;
+        // 🚨 Emojis Restaurados no Mobile também!
         if (m.includes('ITM') && pct < 0) return { borderClass: 'border-red-200 bg-red-50/10', badgeClass: 'bg-red-500 text-white border-red-600', footerClass: 'bg-red-50 border-red-100 text-red-900', icon: '' };
         if (m.includes('ITM') || m.includes('ATM')) return { borderClass: 'border-amber-200 bg-amber-50/10', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300', footerClass: 'bg-amber-50 border-amber-100 text-amber-900', icon: '' };
         return { borderClass: 'border-emerald-200 bg-emerald-50/10', badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300', footerClass: 'bg-emerald-50 border-emerald-100 text-emerald-900', icon: '' };
       },
+      
       getTipoBadgeClass(op) {
         const t = String(op.tipoOpcao || '').toUpperCase();
         const d = String(op.direcaoTrade || '').toUpperCase();

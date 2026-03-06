@@ -69,9 +69,10 @@ const app = createApp({
         // ====================================================================
         // 3. CHASSI ORIGINAL: SENSOR MOBILE E FATIAMENTO
         // ====================================================================
+
         const isMobile = ref(false);
 
-        const handleResize = () => {
+        const checkMobileStatus = () => {
             const userAgent = navigator.userAgent || navigator.vendor || window.opera;
             const isMobileHardware = /android|ipad|iphone|ipod/i.test(userAgent.toLowerCase());
             const isSmallScreen = window.innerWidth <= 1024; 
@@ -80,7 +81,17 @@ const app = createApp({
             if (isMobile.value) isCollapsed.value = true;
         };
 
-        window.addEventListener('resize', handleResize);
+        // 🚀 A IGNIÇÃO: Dispara o sensor no momento ZERO em que o app nasce!
+        checkMobileStatus();
+
+        // 🛡️ AMORTECEDOR (Debounce): Impede o Chrome de travar ao girar o celular
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                checkMobileStatus();
+            }, 150); // Só recalcula o layout 150ms após o movimento parar
+        });
 
         // Distribui os componentes do LAYOUT_MAP para os grids do Index.html
         const topGridComponents = computed(() => {

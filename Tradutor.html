@@ -188,16 +188,15 @@ window.Tradutor = {
         'fvolume': { key: 'volumeFinanceiro', type: 'moeda' }
       }
     }
-  }, // <-- Fim do objeto DICIONARIO
+  },
 
   /**
    * 🚀 ORQUESTRADOR MASTER (Faltava este cara)
    * Recebe o payload bruto da API e despacha cada aba para o seu "Namespace"
    */
-  processarBancoCompleto(rawPayload) {
+    processarBancoCompleto(rawPayload) {
 
     if (!rawPayload) {
-        console.error("[TRADUTOR] Erro: Payload vazio recebido da API.");
         return { resumoGerencial: { timestamp: 'ERRO' } };
     }
     
@@ -468,13 +467,16 @@ window.Tradutor = {
     return configObj;
   },
 
+  // 🚀 CACHE DE FORMATAÇÃO GLOBAL: Criado uma única vez
+  _currencyFormatter: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }),
+
   // Mantido para compatibilidade exclusiva de apresentação visual rápida.
   formatarMoeda(valor) {
     if (valor === undefined || valor === null) return "R$ 0,00";
     let numero = parseFloat(String(valor).replace(',', '.'));
     if (isNaN(numero)) numero = 0;
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numero);
+    return this._currencyFormatter.format(numero); // 🚀 Usa o cache
   }
 
-}; // <-- Fim do objeto Tradutor
+};
 </script>
