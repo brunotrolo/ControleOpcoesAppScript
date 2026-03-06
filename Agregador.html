@@ -15,9 +15,6 @@ window.Agregador = {
       return ativaFlag || statusLimpo === 'ATIVO';
     });
 
-    // SONDA: Se isso aqui der 0 e o cockpit tiver 8, o problema é o texto da coluna STATUS
-    console.log(`[AGREGADOR] Cockpit: ${db.cockpit.length} linhas | Ativos filtrados: ${tradesAtivos.length}`);
-
     // 2. ENRIQUECIMENTO (JOIN)
     // Aqui cruzamos os dados do Cockpit com as Gregas para ter o Delta/Gamma total
     const tradesComRisco = this._enriquecerDados(tradesAtivos, db.calcGreeks);

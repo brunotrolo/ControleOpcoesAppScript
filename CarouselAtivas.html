@@ -37,9 +37,6 @@
 
       <div v-else>
 
-
-
-
         <div v-if="isMobile" class="space-y-12 px-2 pb-10">
           <div v-for="(opsDoVencimento, dataVencimento) in operacoesPorVencimento" :key="dataVencimento" class="flex flex-col">
             
@@ -168,16 +165,6 @@
           </div>
         </div>
 
-
-
-
-
-
-
-
-
-
-
         <div v-else class="flex overflow-x-auto pb-8 gap-6 snap-x snap-mandatory custom-scrollbar px-4">
           <card-operacao v-for="(op, idx) in activeTrades" :key="op.tradeId || idx" :op="op"></card-operacao>
         </div>
@@ -259,6 +246,10 @@
   </template>
 
   <script>
+
+  const carouselCurrencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const carouselNumberFormatter = new Intl.NumberFormat('pt-BR');
+
   const CardOperacao = {
     props: { op: { type: Object, required: true } },
     template: '#card-operacao-template',
@@ -291,8 +282,11 @@
         if (type === 'date') return val instanceof Date ? val.toLocaleDateString('pt-BR') : String(val).split(' ')[0];
         const num = Number(val);
         if (isNaN(num)) return val;
-        if (type === 'currency') return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
-        if (type === 'number') return new Intl.NumberFormat('pt-BR').format(num);
+
+        // 🚀 USA O CACHE EM VEZ DE CRIAR UM "NEW" A CADA RENDER
+        if (type === 'currency') return carouselCurrencyFormatter.format(num);
+        if (type === 'number') return carouselNumberFormatter.format(num);
+
         if (type === 'pct') return (num * 100).toFixed(2).replace('.', ',') + '%';
         if (type === 'delta') return num.toFixed(4).replace('.', ',');
         return val;
@@ -343,9 +337,6 @@
         return 'bg-slate-100 text-slate-800 border-slate-200';
       }
     },
-    mounted() {
-      console.log("📊 Carousel V5 Ativo");
-    }
   };
   </script>
 </div>

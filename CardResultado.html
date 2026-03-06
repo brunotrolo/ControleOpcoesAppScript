@@ -166,10 +166,6 @@ window.CardResultado = {
       // V5: Busca direto na gaveta nova do Agregador
       const stats = this.statsPreCalculados?.resultadoStats;
       
-      if (!stats || stats.total === 0) {
-        if (!this.isLoading) console.warn("⚠️ [Resultado] Componente montado mas sem dados no Cubo V5.");
-        return { lucro: 0, prejuizo: 0, breakeven: 0, total: 0, pctLucro: 0, pctPrejuizo: 0, pctBreakeven: 0 };
-      }
       return stats;
     },
     
@@ -179,13 +175,6 @@ window.CardResultado = {
       if (this.stats.pctLucro >= 50) return { labelClean: 'Positivo', bgClass: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]', textClass: 'text-emerald-600' };
       return { labelClean: 'Atenção', bgClass: 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]', textClass: 'text-red-600 animate-pulse' };
     }
-  },
-  mounted() {
-    // DIAGNÓSTICO DE INTEGRAÇÃO V5
-    console.groupCollapsed("📊 Sonda: Card Resultado");
-    console.log("Status do Cubo:", this.statsPreCalculados ? "✅ RECEBIDO" : "❌ AUSENTE");
-    console.log("Dados de Performance:", this.stats);
-    console.groupEnd();
   }
 };
 </script>

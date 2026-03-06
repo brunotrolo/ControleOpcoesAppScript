@@ -112,10 +112,6 @@ window.CardVencimentos = {
       const stats = this.statsPreCalculados?.vencimentosDteStats;
       const padrao = { curto: 0, medio: 0, longo: 0, pctCurto: 0, pctMedio: 0, pctLongo: 0, total: 0 };
       
-      if (!stats || stats.total === 0) {
-        if (!this.isLoading) console.warn("⚠️ [Vencimentos] Sem dados de DTE no Cubo V5.");
-        return padrao;
-      }
       return stats;
     },
     statusVencimento() {
@@ -138,11 +134,7 @@ window.CardVencimentos = {
       if (p === 'Medio') return { text: 'text-amber-500' };
       return { text: 'text-emerald-500' };
     }
-  },
-  mounted() {
-    console.groupCollapsed("📊 Sonda: Card Vencimentos (DTE)");
-    console.log("Stats Recebidos:", this.stats);
-    console.groupEnd();
   }
+
 };
 </script>

@@ -169,6 +169,11 @@
 </template>
 
 <script>
+
+  // 🚀 CACHE DE FORMATADORES DA TABELA
+  const tableCurrencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const tableNumberFormatter = new Intl.NumberFormat('pt-BR');
+
 window.CockpitTable = {
   props: {
     data: Array, // A prop data é ignorada agora na V5
@@ -275,17 +280,11 @@ window.CockpitTable = {
         return String(value).split(' ')[0]; // Limpa horas se houver
       }
       
-      if (type === 'currency' || type === 'moeda') {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-      }
+      // 🚀 USA O CACHE
+      if (type === 'currency' || type === 'moeda') return tableCurrencyFormatter.format(value);
+      if (type === 'numero' || type === 'number') return tableNumberFormatter.format(value);
       
-      if (type === 'numero' || type === 'number') {
-        return new Intl.NumberFormat('pt-BR').format(value);
-      }
-      
-      if (type === 'percentage') {
-        return (Number(value)).toFixed(2).replace('.', ',') + '%';
-      }
+      if (type === 'percentage') { return (Number(value)).toFixed(2).replace('.', ',') + '%';}
       
       return value;
     },
@@ -326,12 +325,7 @@ window.CockpitTable = {
 
       return 'font-semibold text-slate-800';
     }
-  },
-  
-  mounted() {
-    console.groupCollapsed("📊 Sonda: Cockpit Table");
-    console.log("Operações Ativas Renderizadas:", this.totalFilteredItems);
-    console.groupEnd();
   }
+  
 };
 </script>

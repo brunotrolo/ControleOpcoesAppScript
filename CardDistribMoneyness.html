@@ -124,12 +124,6 @@ window.CardDistribMoneyness = {
     displayStats() {
       const stats = this.statsPreCalculados?.moneynessStats;
       
-      // Se não houver dados, o card avisa o desenvolvedor no console
-      if (!stats || stats.total === 0) {
-        if (!this.isLoading) console.warn("⚠️ [Moneyness] Componente montado mas sem dados no Cubo V5.");
-        return { otm: 0, atm: 0, itm: 0, otmPct: 0, atmPct: 0, itmPct: 0, total: 0, poeMedio: '0%' };
-      }
-      
       return stats;
     },
     statusProtecao() {
@@ -181,14 +175,6 @@ window.CardDistribMoneyness = {
       const map = { otm: 'text-emerald-500', atm: 'text-amber-400', itm: 'text-red-500' };
       return map[type];
     }
-  },
-    mounted() {
-      // DIAGNÓSTICO DE INTEGRAÇÃO
-      // Se o card aparecer zerado, o console dirá imediatamente se o problema é o Cubo ou a Prop
-      console.groupCollapsed("📊 Sonda: Card Moneyness");
-      console.log("Status do Cubo:", this.statsPreCalculados ? "✅ RECEBIDO" : "❌ AUSENTE");
-      console.log("Dados de Moneyness:", this.displayStats);
-      console.groupEnd();
   }
 };
 </script>

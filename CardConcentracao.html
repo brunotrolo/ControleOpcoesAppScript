@@ -127,11 +127,6 @@ window.CardConcentracao = {
       const displayedTotal = this.barItems.reduce((acc, item) => acc + item.pct, 0);
       return Math.max(0, 100 - displayedTotal);
     }
-  },
-  mounted() {
-    console.groupCollapsed("📊 Sonda: Card Concentração");
-    console.log("Stats Recebidos:", this.statsPreCalculados?.concentracaoRisco);
-    console.groupEnd();
   }
 };
 </script>
