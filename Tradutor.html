@@ -332,6 +332,7 @@ window.Tradutor = {
     return {
       cockpit: this.processar(getAba('COCKPIT'), 'COCKPIT'),
       configGlobal: this.processar(getAba('CONFIG_GLOBAL'), 'CONFIG_GLOBAL'),
+      logs: this.processar(getAba('Logs'), 'LOGS'),
       necton: this.processar(getAba('NECTON_IMPORT'), 'NECTON_IMPORT'),
       dadosAtivos: this.processar(getAba('DADOS_ATIVOS'), 'DADOS_ATIVOS'),
       dadosDetalhes: this.processar(getAba('DADOS_DETALHES'), 'DADOS_DETALHES'),
@@ -512,12 +513,25 @@ window.Tradutor = {
     if (!val) return new Date(2099, 11, 31);
     if (val instanceof Date) return val;
     
-    // Suporte a Datas ISO e Formato Brasileiro DD/MM/AAAA
     let s = String(val).trim();
     if (s.includes('/')) {
-        const parts = s.split(' ')[0].split('/');
-        if (parts.length === 3) {
-            return new Date(parts[2], parts[1] - 1, parts[0]);
+        const parts = s.split(' '); // Separa a data da hora
+        const dateParts = parts[0].split('/');
+        
+        if (dateParts.length === 3) {
+            let ano = parseInt(dateParts[2], 10);
+            let mes = parseInt(dateParts[1], 10) - 1;
+            let dia = parseInt(dateParts[0], 10);
+            
+            let horas = 0, mins = 0, segs = 0;
+            // Se tiver hora, captura os valores
+            if (parts.length > 1 && parts[1].includes(':')) {
+                const timeParts = parts[1].split(':');
+                horas = parseInt(timeParts[0], 10) || 0;
+                mins = parseInt(timeParts[1], 10) || 0;
+                segs = parseInt(timeParts[2], 10) || 0;
+            }
+            return new Date(ano, mes, dia, horas, mins, segs);
         }
     }
     

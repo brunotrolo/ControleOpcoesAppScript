@@ -48,6 +48,7 @@ function getAbasPesadas() {
     // As abas que esmagam o servidor:
     const abasPesadas = [
       "DADOS_ATIVOS", 
+      "Logs",
       "Dados_Ativos_Historico_Tendencia", 
       "DADOS_ATIVOS_HISTORICO250D",
       "Analise_Preditiva_Heatmap",
