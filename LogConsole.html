@@ -116,16 +116,22 @@ window.LogConsole = {
       // ADAPTADOR: Transforma o dado bruto do Tradutor no formato do Design
       return recentLogs.map(l => {
         
-        // Limpa a data para exibir apenas a hora (ex: "02/02 20:05" -> "20:05")
-        let rawTime = String(l['TIMESTAMP'] || '--:--');
+        let rawTime = '---';
+        if (l.timestampLog instanceof Date) {
+            rawTime = l.timestampLog.toLocaleString('pt-BR');
+        } else if (l.timestampLog) {
+            rawTime = String(l.timestampLog);
+        }
+        
+        // Pega só a hora (ex: "06/03/2026 13:40:45" vira "13:40:45")
         let shortTime = rawTime.includes(' ') ? rawTime.split(' ')[1] : rawTime;
 
         return {
           timestamp: shortTime,
-          service: l['SERVICO'] || 'SYSTEM',
-          status: l['STATUS'] || 'INFO',
-          message: l['MENSAGEM_RESUMO'] || l['MENSAGEM'] || '',
-          context: l['CONTEXTO_DETALHADO'] || ''
+          service: l.servico || 'SYSTEM',
+          status: l.status || 'INFO',
+          message: l.mensagemResumo || '',
+          context: l.contextoDetalhado || ''
         };
       });
     }

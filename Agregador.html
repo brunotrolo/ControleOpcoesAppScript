@@ -21,45 +21,45 @@ window.Agregador = {
 
     // 3. GERAÇÃO DAS GAVETAS DO CUBO
     return {
-        meta: { timestamp: new Date().toISOString(), status: 'CALCULATED' },
-        resumoGlobal: this._calcularMetricasGlobais(tradesComRisco),
-        distribuicaoVencimentos: this._calcularVencimentos(tradesComRisco),
-        concentracaoRisco: this._calcularConcentracao(tradesComRisco),
-        moneynessStats: this._calcularMoneyness(tradesComRisco),
-        moneynessPorTipo: this._calcularMoneynessPorTipo(tradesComRisco),
-        resultadoStats: this._calcularResultados(tradesComRisco),
-        vencimentosDteStats: this._calcularVencimentosDTE(tradesComRisco),
-        performanceStats: this._calcularResultados(tradesComRisco),
-        listaAtivas: tradesComRisco 
+      meta: { timestamp: new Date().toISOString(), status: 'CALCULATED' },
+      resumoGlobal: this._calcularMetricasGlobais(tradesComRisco),
+      distribuicaoVencimentos: this._calcularVencimentos(tradesComRisco),
+      concentracaoRisco: this._calcularConcentracao(tradesComRisco),
+      moneynessStats: this._calcularMoneyness(tradesComRisco),
+      moneynessPorTipo: this._calcularMoneynessPorTipo(tradesComRisco),
+      resultadoStats: this._calcularResultados(tradesComRisco),
+      vencimentosDteStats: this._calcularVencimentosDTE(tradesComRisco),
+      performanceStats: this._calcularResultados(tradesComRisco),
+      listaAtivas: tradesComRisco 
     };
   },
 
   _mapearColunas(headers) {
-      // V5: Mapeamento direto das chaves blindadas do Tradutor
-      return {
-        STATUS: 'status',
-        PL_TOTAL: 'plTotalValor',
-        PL_SESSAO: 'plSessaoValor',
-        PL_PCT: 'plTotalPct',
-        LUCRO_MAX: 'potencialLucroPct',
-        PERDA_MAX: 'perdaMaxima',
-        NOCIONAL: 'nocional',
-        MONEYNESS: 'moneynessCode',
-        TIPO: 'tipoOpcao',
-        DIRECAO: 'direcaoTrade',
-        VENCIMENTO: 'dataVencimento',
-        STRIKE: 'strike',
-        SPOT: 'spotPrice',
-        PREMIO_ENTRADA: 'premioMedioEntrada',
-        DELTA: 'delta',
-        GAMMA: 'gamma',
-        VEGA: 'vega',
-        THETA: 'theta',
-        RHO: 'rho',
-        IV: 'ivAtual',
-        POE: 'probabilidadeSucesso'
-      };
-    },
+    // V5: Mapeamento direto das chaves blindadas do Tradutor
+    return {
+      STATUS: 'status',
+      PL_TOTAL: 'plTotalValor',
+      PL_SESSAO: 'plSessaoValor',
+      PL_PCT: 'plTotalPct',
+      LUCRO_MAX: 'potencialLucroPct',
+      PERDA_MAX: 'perdaMaxima',
+      NOCIONAL: 'nocional',
+      MONEYNESS: 'moneynessCode',
+      TIPO: 'tipoOpcao',
+      DIRECAO: 'direcaoTrade',
+      VENCIMENTO: 'dataVencimento',
+      STRIKE: 'strike',
+      SPOT: 'spotPrice',
+      PREMIO_ENTRADA: 'premioMedioEntrada',
+      DELTA: 'delta',
+      GAMMA: 'gamma',
+      VEGA: 'vega',
+      THETA: 'theta',
+      RHO: 'rho',
+      IV: 'ivAtual',
+      POE: 'probabilidadeSucesso'
+    };
+  },
 
   // =========================================================================
   // 🧮 GAVETAS DE CÁLCULO (Motor Analítico)
@@ -91,41 +91,41 @@ window.Agregador = {
 
   _calcularVencimentos(tradesAtivos) {
     const mapaVencimentos = tradesAtivos.reduce((acc, trade) => {
-        // Trava de segurança para data
-        let chaveData = 'N/A';
-        if (trade.dataVencimento instanceof Date) {
-            chaveData = trade.dataVencimento.toISOString().split('T')[0];
-        } else if (trade.dataVencimento) {
-            chaveData = String(trade.dataVencimento).split('T')[0];
-        }
-        
-        if (!acc[chaveData]) {
-            acc[chaveData] = { 
-                dataVencimento: chaveData, 
-                dteMedioUteis: 0, 
-                nocionalTotal: 0, 
-                lucroMaximo: 0, 
-                plAberto: 0, 
-                contagem: 0 
-            };
-        }
-        
-        acc[chaveData].contagem += 1;
-        // Chaves Harmonizadas com o Tradutor V5:
-        acc[chaveData].nocionalTotal += (trade.nocionalTotal || 0); 
-        acc[chaveData].lucroMaximo += (trade.ganhoMaximo || 0);     
-        acc[chaveData].plAberto += (trade.plTotalValor || 0);       
-        acc[chaveData].dteMedioUteis += (trade.dteUteis || 0);
-        
-        return acc;
+      // Trava de segurança para data
+      let chaveData = 'N/A';
+      if (trade.dataVencimento instanceof Date) {
+        chaveData = trade.dataVencimento.toISOString().split('T')[0];
+      } else if (trade.dataVencimento) {
+        chaveData = String(trade.dataVencimento).split('T')[0];
+      }
+      
+      if (!acc[chaveData]) {
+        acc[chaveData] = { 
+          dataVencimento: chaveData, 
+          dteMedioUteis: 0, 
+          nocionalTotal: 0, 
+          lucroMaximo: 0, 
+          plAberto: 0, 
+          contagem: 0 
+        };
+      }
+      
+      acc[chaveData].contagem += 1;
+      // Chaves Harmonizadas com o Tradutor V5:
+      acc[chaveData].nocionalTotal += (trade.nocionalTotal || 0); 
+      acc[chaveData].lucroMaximo += (trade.ganhoMaximo || 0);     
+      acc[chaveData].plAberto += (trade.plTotalValor || 0);       
+      acc[chaveData].dteMedioUteis += (trade.dteUteis || 0);
+      
+      return acc;
     }, {});
 
     return Object.values(mapaVencimentos)
-        .map(v => {
-            v.dteMedioUteis = Math.round(v.dteMedioUteis / v.contagem);
-            return v;
-        })
-        .sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
+      .map(v => {
+        v.dteMedioUteis = Math.round(v.dteMedioUteis / v.contagem);
+        return v;
+      })
+      .sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
   },
 
 
@@ -189,29 +189,29 @@ window.Agregador = {
   },
 
   _calcularMoneyness(trades) {
-      if (!trades || trades.length === 0) return this._gerarMoneynessVazio();
-      
-      let totalOtm = 0, totalAtm = 0, totalItm = 0;
-      
-      trades.forEach(op => {
-        // CORREÇÃO: Busca as chaves sanitizadas do Tradutor V5 (moneynessCode)
-        const val = String(op.moneynessCode || op.moneyness || '').toUpperCase().trim();
-        if (val.includes('OTM')) totalOtm++;
-        else if (val.includes('ITM')) totalItm++;
-        else totalAtm++;
-      });
+    if (!trades || trades.length === 0) return this._gerarMoneynessVazio();
+    
+    let totalOtm = 0, totalAtm = 0, totalItm = 0;
+    
+    trades.forEach(op => {
+      // CORREÇÃO: Busca as chaves sanitizadas do Tradutor V5 (moneynessCode)
+      const val = String(op.moneynessCode || op.moneyness || '').toUpperCase().trim();
+      if (val.includes('OTM')) totalOtm++;
+      else if (val.includes('ITM')) totalItm++;
+      else totalAtm++;
+    });
 
-      const total = totalOtm + totalAtm + totalItm;
-      if (total === 0) return this._gerarMoneynessVazio();
+    const total = totalOtm + totalAtm + totalItm;
+    if (total === 0) return this._gerarMoneynessVazio();
 
-      return { 
-          otm: totalOtm, atm: totalAtm, itm: totalItm, total: total,
-          otmPct: Math.round((totalOtm / total) * 100), 
-          atmPct: Math.round((totalAtm / total) * 100), 
-          itmPct: Math.round((totalItm / total) * 100),
-          statusKey: (totalOtm / total) >= 0.8 ? 'BLINDADO' : (totalOtm / total) >= 0.5 ? 'CONTROLADO' : 'ALERTA'
-      };
-    },
+    return { 
+      otm: totalOtm, atm: totalAtm, itm: totalItm, total: total,
+      otmPct: Math.round((totalOtm / total) * 100), 
+      atmPct: Math.round((totalAtm / total) * 100), 
+      itmPct: Math.round((totalItm / total) * 100),
+      statusKey: (totalOtm / total) >= 0.8 ? 'BLINDADO' : (totalOtm / total) >= 0.5 ? 'CONTROLADO' : 'ALERTA'
+    };
+  },
 
   _calcularMoneynessPorTipo(trades) {
     const padrao = { itm: 0, atm: 0, otm: 0, total: 0 };
@@ -244,32 +244,32 @@ window.Agregador = {
   },
 
   _calcularVencimentosDTE(trades) {
-      const padrao = { curto: 0, medio: 0, longo: 0, total: 0, pctCurto: 0, pctMedio: 0, pctLongo: 0 };
-      if (!trades || trades.length === 0) return padrao;
+    const padrao = { curto: 0, medio: 0, longo: 0, total: 0, pctCurto: 0, pctMedio: 0, pctLongo: 0 };
+    if (!trades || trades.length === 0) return padrao;
 
-      let curto = 0, medio = 0, longo = 0;
+    let curto = 0, medio = 0, longo = 0;
 
-      trades.forEach(t => {
-        // Usa a chave dteCorridos que definimos no Tradutor (ou calcula se não existir)
-        const dte = parseInt(t.dteCorridos, 10);
-        
-        if (!isNaN(dte)) {
-          if (dte <= 15) curto++;
-          else if (dte <= 45) medio++;
-          else longo++;
-        }
-      });
+    trades.forEach(t => {
+      // Usa a chave dteCorridos que definimos no Tradutor (ou calcula se não existir)
+      const dte = parseInt(t.dteCorridos, 10);
+      
+      if (!isNaN(dte)) {
+        if (dte <= 15) curto++;
+        else if (dte <= 45) medio++;
+        else longo++;
+      }
+    });
 
-      const total = curto + medio + longo;
-      if (total === 0) return padrao;
+    const total = curto + medio + longo;
+    if (total === 0) return padrao;
 
-      return {
-        curto, medio, longo, total,
-        pctCurto: Math.round((curto / total) * 100),
-        pctMedio: Math.round((medio / total) * 100),
-        pctLongo: Math.round((longo / total) * 100)
-      };
-    },
+    return {
+      curto, medio, longo, total,
+      pctCurto: Math.round((curto / total) * 100),
+      pctMedio: Math.round((medio / total) * 100),
+      pctLongo: Math.round((longo / total) * 100)
+    };
+  },
 
   _enriquecerDados(trades, greeks) {
     if (!greeks || greeks.length === 0) return trades;
@@ -285,13 +285,14 @@ window.Agregador = {
    */
   _gerarCuboVazio() {
     return {
-        meta: { status: 'EMPTY' },
-        resumoGlobal: { totalOps: 0, nocional: 0, plTotalValor: 0, plTotalPct: 0 },
-        moneynessStats: this._gerarMoneynessVazio(), // Garante que o Raio-X não venha undefined
-        distribuicaoVencimentos: [],
-        concentracaoRisco: []
+      meta: { status: 'EMPTY' },
+      resumoGlobal: { totalOps: 0, nocional: 0, plTotalValor: 0, plTotalPct: 0 },
+      moneynessStats: this._gerarMoneynessVazio(), // Garante que o Raio-X não venha undefined
+      distribuicaoVencimentos: [],
+      concentracaoRisco: []
     };
   },
+  
   _gerarMoneynessVazio() {
     return { otm: 0, atm: 0, itm: 0, total: 0, otmPct: 0, atmPct: 0, itmPct: 0, statusKey: 'ALERTA' };
   }
