@@ -127,22 +127,29 @@ function apiAdicionarLinhas(nomeAba, dadosMatriz) {
 // 3. UPDATE (Atualização de Chave-Valor)
 // Substitui a antiga "saveGlobalConfig"
 // ==========================================
-function apiAtualizarChaveValor(nomeAba, dicionarioAtualizacoes, colChave = 1, colValor = 2) {
+
+function apiAtualizarChaveValor(nomeAba, payload) {
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nomeAba);
-    if (!sheet) throw new Error(`Aba [${nomeAba}] não existe no banco de dados.`);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = getPlanilhaDinamica(ss, nomeAba);
+    if (!sheet) throw new Error("Aba de configurações não encontrada.");
 
     const data = sheet.getDataRange().getValues();
-    
-    const newVals = data.map(row => {
-      const key = row[colChave - 1]; // Índice da chave (ex: A)
-      // Se a chave veio no payload, atualiza. Se não, devolve o valor que já estava lá.
-      return [dicionarioAtualizacoes[key] !== undefined ? dicionarioAtualizacoes[key] : row[colValor - 1]];
-    });
+    const chavesNovas = Object.keys(payload);
 
-    sheet.getRange(1, colValor, newVals.length, 1).setValues(newVals);
-    return { success: true, message: `Dados atualizados com sucesso em [${nomeAba}].` };
-  } catch (e) { return { success: false, error: e.message }; }
+    // Percorre a planilha procurando as chaves enviadas
+    for (let i = 0; i < data.length; i++) {
+      const chavePlanilha = String(data[i][0]).trim();
+      if (chavesNovas.includes(chavePlanilha)) {
+        // Grava o novo valor na coluna B (índice 2)
+        sheet.getRange(i + 1, 2).setValue(payload[chavePlanilha]);
+      }
+    }
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
 }
 
 // ==========================================

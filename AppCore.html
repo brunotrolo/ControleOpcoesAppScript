@@ -287,14 +287,20 @@ const app = createApp({
               };
             });
 
+            const rawConfig = response.raw['Config_Global'] || response.raw['CONFIG_GLOBAL'] || [];
+            const configArray = rawConfig.slice(1).map(row => ({
+                CHAVE: row[0],
+                VALOR: row[1]
+            }));
+
             // Atualiza o Estado Global
             db.value = { 
               ...db.value,
               ...dadosTraduzidos, 
               cockpit: cockpitExpresso,
               configGlobal: dadosTraduzidos.configGlobal || {},
+              configGlobalArray: configArray,
               resumoGerencial: dadosTraduzidos.resumoGerencial || { timestamp: new Date().toLocaleString() },
-              // 🚀 PROTEÇÃO: Garante que não dá erro se a variável não existir
               raw: { ...(db.value.raw || {}), ...(dadosTraduzidos.raw || {}) }
             };
 
@@ -352,9 +358,6 @@ const app = createApp({
                 });
             }
 
-
-
-
     const customProps = {
             // =========================================================
             // 1. HOME & COCKPIT (Widgets e Resumos Visuais)
@@ -384,7 +387,9 @@ const app = createApp({
             'necton-import':          { data: db.value.necton || [] },
             'automation-view':        { logs: db.value.logs || [] },
             'bancodedados-view':      { dbRaw: db.value.raw || {}, isLoading: isLoading.value },
-            'settings-view':          { configGlobais: db.value.configGlobal || {} }
+            //'settings-view':          { configGlobais: db.value.configGlobal || {} }
+            'settings-view':          { configItems: db.value.configGlobalArray || [], isMobile: isMobile.value, isLoading: isLoading.value}
+
           };
 
       return { ...baseProps, ...(customProps[compConfig.component] || {}) };
