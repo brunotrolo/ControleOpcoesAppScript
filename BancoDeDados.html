@@ -145,28 +145,39 @@
 <script>
 window.BancoDeDadosView = {
   template: '#page-bancodedados',
+  props: ['dbRaw', 'isLoading'], // 🚀 RECEBE A "CAIXA FORTE" (19 abas) DO APPCORE
   data() {
     return {
       abaAtiva: 'Cockpit',
       listaAbas: [],
       selecaoAtual: [], 
-      dbRaw: {},
       hot: null,
       syncBusy: false,
-      statsSelecao: { soma: 0, conta: 0, media: 0 }, // NOVO
+      statsSelecao: { soma: 0, conta: 0, media: 0 },
       stats: { totalOps: 0, qtdTotal: 0, plTotal: 0, nocionalTotal: 0 },
-      modalExcluir: {
-        visivel: false,
-        mensagem: '',
-        callback: null
-      },
-      modalAdd: {
-        visivel: false, // Corrigido aqui
-        form: {}
-      }
+      modalExcluir: { visivel: false, mensagem: '', callback: null },
+      modalAdd: { visivel: false, form: {} }
     };
   },
-  // ... (computed, mounted permanecem iguais)
+  
+  watch: {
+    // 🚀 VIGIA: Quando o AppCore terminar de baixar os dados em background, atualiza o menu!
+    dbRaw: {
+      handler(novoDB) {
+        if (novoDB && Object.keys(novoDB).length > 0) {
+          this.listaAbas = Object.keys(novoDB).filter(k => k !== 'resumoGerencial');
+          if (!this.hot) this.switchAba(); // Renderiza a primeira aba
+        }
+      },
+      immediate: true,
+      deep: true
+    },
+    // Liga o spinner superior se o AppCore avisar que está a carregar
+    isLoading(newVal) {
+      this.syncBusy = newVal;
+    }
+  },
+
   computed: {
     temSelecao() {
       return this.selecaoAtual && this.selecaoAtual.length > 0 && this.selecaoAtual[0] !== null;
@@ -183,52 +194,64 @@ window.BancoDeDadosView = {
       return total;
     }
   },
+
   mounted() {
-    this.sincronizarBanco();
+    if (this.dbRaw && Object.keys(this.dbRaw).length > 0) {
+      this.switchAba();
+    }
   },
+
   methods: {
+    // 🚀 O Botão sincronizar agora apenas força a grelha a redesenhar os dados que estão na memória
     sincronizarBanco() {
       this.syncBusy = true;
-      if (typeof google !== 'undefined') {
-        google.script.run
-          .withSuccessHandler((res) => {
-            try {
-              if (res && res.success) {
-                this.dbRaw = res.raw;
-                this.listaAbas = Object.keys(res.raw);
-                this.switchAba();
-              }
-            } finally {
-              // Garante que o spinner desliga MESMO se der erro no try
-              this.syncBusy = false;
-              this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
-            }
-          })
-          .withFailureHandler((err) => {
-            this.syncBusy = false; // Desliga em caso de falha de conexão
-            console.error("Falha na API:", err);
-          })
-          .getInitialData();
-      } else {
-        // Escudo para modo de desenvolvimento local (fora do Sheets)
-        console.warn("API do Google não encontrada. Modo Local.");
-        setTimeout(() => { this.syncBusy = false; }, 1000);
-      }
+      this.switchAba();
+      setTimeout(() => { this.syncBusy = false; }, 500);
     },
 
     switchAba() {
-      // CORREÇÃO DO BUG: Zera a seleção sempre que a aba mudar
       this.selecaoAtual = [];
+      if (!this.dbRaw) return;
 
-      let matriz = this.dbRaw[this.abaAtiva];
-      if (!matriz) return;
-      
-      // Ajuste de Offset para Cockpit
-      if (this.abaAtiva === 'Cockpit') {
-        matriz = matriz.slice(9); 
+      // 🔍 Busca a matriz bruta (ignorando maiúsculas/minúsculas)
+      const nomeReal = Object.keys(this.dbRaw).find(k => k.toUpperCase() === this.abaAtiva.toUpperCase());
+      let matriz = this.dbRaw[nomeReal];
+
+      // Proteção contra abas vazias
+      if (!matriz || matriz.length < 2) {
+         if (this.hot) { this.hot.destroy(); this.hot = null; }
+         return;
       }
-      
-      const dadosSaneados = Tradutor.processar(matriz);
+
+      // 🎯 Ajuste de Offset: O Cockpit tem 9 linhas de cabeçalho "inútil" visualmente
+      let cabecalhoIndex = 0;
+      if (this.abaAtiva.toUpperCase() === 'COCKPIT') {
+        cabecalhoIndex = 9;
+      }
+
+      // 🚀 CONVERSOR UNIVERSAL: Transforma a matriz bruta (Arrays) num formato JSON para o Handsontable
+      const headers = matriz[cabecalhoIndex];
+      const dadosSaneados = [];
+
+      for (let i = cabecalhoIndex + 1; i < matriz.length; i++) {
+         const row = matriz[i];
+         const celulaA = String(row[0] || '').trim();
+         
+         // Ignora linhas totalmente vazias ou linhas de subtotais
+         if (celulaA === "" || celulaA.includes("SUBTOTAL")) continue;
+
+         let obj = {};
+         // 🖃 CARIMBO MÁGICO: Guarda a linha exata do Excel para podermos apagar sem errar o alvo
+         obj.linhaRealExcel = i + 1; 
+
+         headers.forEach((h, index) => {
+           if (h && h.trim() !== "") {
+              obj[h.trim()] = row[index] !== undefined ? row[index] : "";
+           }
+         });
+         dadosSaneados.push(obj);
+      }
+
       this.renderGrade(dadosSaneados);
     },
 
@@ -239,7 +262,8 @@ window.BancoDeDadosView = {
         if (this.hot) { this.hot.destroy(); this.hot = null; }
 
         try {
-          const nomesColunas = Object.keys(dados[0]).filter(key => key.trim() !== "");
+          // 🚀 FIX 1: Impede que o "Carimbo Mágico" vire uma coluna visível na grelha
+          const nomesColunas = Object.keys(dados[0]).filter(key => key.trim() !== "" && key !== "linhaRealExcel");
           const configColunas = this.definirConfiguracaoColunas(nomesColunas);
 
           this.hot = new Handsontable(container, {
@@ -250,16 +274,15 @@ window.BancoDeDadosView = {
             
             // --- TRAVAS DE PERFORMANCE ---
             width: '100%',
-            height: '100%', // O container PAI precisa de altura fixa (px ou h-screen)
+            height: '100%', 
             stretchH: 'all',
-            renderAllRows: false, // Ativa Virtualização (Renderiza só o que aparece)
-            viewportRowRenderingOffset: 10, // Buffer de linhas para o scroll não engasgar
+            renderAllRows: false, 
+            viewportRowRenderingOffset: 10, 
             viewportColumnRenderingOffset: 5,
             
-            // --- SEGURANÇA CONTRA LINHAS FANTASMAS ---
+            // --- SEGURANÇA ---
             minSpareRows: 0,
-            fillHandle: false, // Desativa o arraste de célula que causa reflows pesados
-            
+            fillHandle: false, 
             manualColumnResize: true,
             columnSorting: true,
             filters: true,
@@ -268,61 +291,86 @@ window.BancoDeDadosView = {
             licenseKey: 'non-commercial-and-evaluation',
             className: 'htCenter htMiddle custom-grid-style',
             
-            afterInit: () => this.atualizarSumario(),
-            afterFilter: () => this.atualizarSumario(),
+            // 🚀 FIX 2: Removidas as chamadas ao atualizarSumario() antigo.
+            // Agora a grelha foca-se apenas no que interessa: A sua seleção!
             afterSelectionEnd: (r, c, r2, c2) => { 
               if (this.hot) {
                 this.selecaoAtual = this.hot.getSelected();
-                this.calcularSomaSelecao(); // DISPARA A CALCULADORA
+                this.calcularSomaSelecao(); // A calculadora mágica do rodapé continua ativa!
               }
             },
             afterDeselect: () => { 
               this.selecaoAtual = []; 
               this.statsSelecao = { soma: 0, conta: 0, media: 0 }; 
             },
-            afterChange: (changes, source) => { if (source === 'edit' && changes) this.processarEdicao(changes); }
+            afterChange: (changes, source) => { 
+              if (source === 'edit' && changes) this.processarEdicao(changes); 
+            }
           });
         } catch (err) { console.error("Erro Handsontable:", err); }
       });
     },
 
     atualizarSumario() {
-      if (!this.hot || !this.hot.rootElement) return;
-      try {
-        const pluginFiltro = this.hot.getPlugin('filters');
-        const linhasVisiveis = pluginFiltro.getSelectedVisibleRows();
-        const dadosProcessar = linhasVisiveis.length > 0 ? this.hot.getSourceDataAtRows(linhasVisiveis) : this.hot.getSourceData();
-        if (dadosProcessar) this.stats = Agregador.processarSumario(dadosProcessar);
-      } catch (err) { console.warn("Aguardando estabilidade..."); }
+      // 🚀 NEUTRALIZADO: O Agregador V5 roda no Maestro (AppCore).
+      // A página de Banco de Dados já não precisa de tentar calcular o resumo global.
     },
 
     processarEdicao(changes) {
       changes.forEach(([row, prop, oldValue, newValue]) => {
         if (oldValue === newValue || !this.hot) return;
-        const colIndex = this.hot.propToCol(prop) + 1;
-        const offset = (this.abaAtiva === 'Cockpit') ? 11 : 2;
-        if (typeof google !== 'undefined') google.script.run.apiSetCellValue(this.abaAtiva, row + offset, colIndex, newValue);
+        
+        // 🚀 LÊ A LINHA REAL DO COFRE: Imune a filtros e ordenações!
+        const rowData = this.hot.getSourceDataAtRow(row);
+        const linhaReal = rowData.linhaRealExcel;
+        
+        const colIndex = this.hot.propToCol(prop) + 1; 
+        
+        if (typeof google !== 'undefined') {
+          google.script.run.apiSetCellValue(this.abaAtiva, linhaReal, colIndex, newValue);
+        }
       });
     },
 
     definirConfiguracaoColunas(nomesColunas) {
+      const namespace = this.abaAtiva.toUpperCase();
+      const dicionarioAba = (window.Tradutor && window.Tradutor.DICIONARIO) ? window.Tradutor.DICIONARIO[namespace] : null;
+
       const configs = nomesColunas.map(col => {
         const config = { data: col };
-        if (Tradutor._isFinanceiro(col)) {
+        const mapping = (dicionarioAba && dicionarioAba.map) ? dicionarioAba.map[col] : null;
+        const type = mapping ? mapping.type : '';
+
+        // Se o dicionário diz que é moeda ou o nome sugere financeiro
+        if (type === 'moeda' || col.includes('R$') || col.includes('P/L')) {
           config.type = 'numeric';
           config.numericFormat = { pattern: 'R$ 0,00', culture: 'pt-BR' };
-          if (col.includes('P/L')) {
-            config.renderer = (instance, td, row, col, prop, value, cellProperties) => {
-              Handsontable.renderers.NumericRenderer.apply(this, [instance, td, row, col, prop, value, cellProperties]);
-              const num = Tradutor.limparNumero(value);
-              td.style.color = num >= 0 ? '#10b981' : '#f43f5e';
-              td.style.fontWeight = '900';
-              td.style.background = num >= 0 ? '#f0fdf4' : '#fff1f2';
-            };
-          }
+        } 
+        // Se o dicionário diz que é percentual
+        else if (type === 'percentual' || col.includes('%')) {
+          config.type = 'numeric';
+          config.numericFormat = { pattern: '0,00%', culture: 'pt-BR' };
         }
+        // Se for apenas número
+        else if (type === 'numero') {
+          config.type = 'numeric';
+        }
+
+        // Colorização especial para P/L
+        if (col.toUpperCase().includes('P/L')) {
+          config.renderer = (instance, td, row, colIndex, prop, value, cellProperties) => {
+            Handsontable.renderers.NumericRenderer.apply(this, [instance, td, row, colIndex, prop, value, cellProperties]);
+            const num = parseFloat(String(value).replace(/[R$\s.%]/g, '').replace(',', '.')) || 0;
+            td.style.color = num >= 0 ? '#10b981' : '#f43f5e';
+            td.style.fontWeight = '900';
+            td.style.background = num >= 0 ? '#f0fdf4' : '#fff1f2';
+          };
+        }
+        
         return config;
       });
+
+      // Coluna de Excluir...
       configs.push({
         data: 'acao_excluir', header: 'AÇÕES', readOnly: true, width: 50,
         renderer: (instance, td, row, col, prop, value, cellProperties) => {
@@ -330,63 +378,80 @@ window.BancoDeDadosView = {
           td.onclick = (e) => { e.stopPropagation(); this.solicitarExclusao(row); };
         }
       });
+
       return configs;
     },
 
     solicitarExclusao(rowIndex) {
-      const valorA = this.hot.getDataAtCell(rowIndex, 0);
-      this.modalExcluir.mensagem = `Deseja excluir o registro [${valorA}]?`;
+      const rowData = this.hot.getSourceDataAtRow(rowIndex);
+      const linhaReal = rowData.linhaRealExcel;
+      const primeiraColuna = this.hot.getColHeader(0);
+      const valorA = rowData[primeiraColuna] || 'Registro';
+
+      this.modalExcluir.mensagem = `Deseja excluir [${valorA}] (Linha ${linhaReal})?`;
       this.modalExcluir.visivel = true;
-      this.modalExcluir.callback = () => this.executarExclusaoUnica(rowIndex, valorA);
-      this.$nextTick(() => lucide.createIcons());
+      this.modalExcluir.callback = () => this.executarExclusaoUnica(rowIndex, linhaReal, valorA);
+      this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
     },
 
     excluirSelecionados() {
       const sel = this.hot.getSelected();
       if (!sel) return;
-      const linhasParaApagar = [];
+      const linhasGrelha = [];
+      
       sel.forEach(([r1, c1, r2, c2]) => {
-        for (let i = Math.min(r1, r2); i <= Math.max(r1, r2); i++) if (!linhasParaApagar.includes(i)) linhasParaApagar.push(i);
+        for (let i = Math.min(r1, r2); i <= Math.max(r1, r2); i++) {
+          if (!linhasGrelha.includes(i)) linhasGrelha.push(i);
+        }
       });
-      this.modalExcluir.mensagem = `Excluir ${linhasParaApagar.length} registros?`;
+
+      // 🚀 CONVERTE OS ÍNDICES VISUAIS NAS LINHAS REAIS DO EXCEL
+      const linhasReais = linhasGrelha.map(idx => this.hot.getSourceDataAtRow(idx).linhaRealExcel);
+
+      this.modalExcluir.mensagem = `Excluir ${linhasReais.length} registos selecionados?`;
       this.modalExcluir.visivel = true;
-      this.modalExcluir.callback = () => this.executarExclusaoLote(linhasParaApagar);
-      this.$nextTick(() => lucide.createIcons());
+      this.modalExcluir.callback = () => this.executarExclusaoLote(linhasGrelha, linhasReais);
+      this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
     },
 
     confirmarExclusao() { if (this.modalExcluir.callback) this.modalExcluir.callback(); this.fecharModalExcluir(); },
     fecharModalExcluir() { this.modalExcluir.visivel = false; this.modalExcluir.callback = null; },
 
-    executarExclusaoUnica(rowIndex, valorA) {
-      const offset = (this.abaAtiva === 'Cockpit') ? 11 : 2;
+    executarExclusaoUnica(rowIndex, linhaReal, valorA) {
       this.syncBusy = true;
       if (typeof google !== 'undefined') {
         google.script.run
           .withSuccessHandler((res) => { 
             this.syncBusy = false; 
-            if(res.success) { this.hot.alter('remove_row', rowIndex); this.atualizarSumario(); }
+            if(res.success) { 
+               this.hot.alter('remove_row', rowIndex); 
+               this.atualizarSumario(); 
+               // 🚀 AVISA O APPCORE PARA ATUALIZAR O DASHBOARD NO FUNDO
+               this.$emit('refresh');
+            }
             else alert("Erro: " + res.error);
           })
           .withFailureHandler((err) => { this.syncBusy = false; alert("Erro no servidor."); })
-          .apiExcluirLinhaSegura(this.abaAtiva, rowIndex + offset, valorA);
+          .apiExcluirLinhaSegura(this.abaAtiva, linhaReal, valorA); // Passa a linha exata!
       } else { this.syncBusy = false; }
     },
 
-    executarExclusaoLote(linhas) {
+    executarExclusaoLote(linhasGrelha, linhasReais) {
       this.syncBusy = true;
-      const offset = (this.abaAtiva === 'Cockpit') ? 11 : 2;
       if (typeof google !== 'undefined') {
         google.script.run
           .withSuccessHandler((res) => { 
             this.syncBusy = false; 
             if(res.success) {
-              linhas.sort((a,b) => b-a).forEach(idx => this.hot.alter('remove_row', idx));
+              // Apaga de baixo para cima para não perder a referência dos índices na grelha
+              linhasGrelha.sort((a,b) => b-a).forEach(idx => this.hot.alter('remove_row', idx));
               this.selecaoAtual = [];
               this.$nextTick(() => this.atualizarSumario());
+              this.$emit('refresh'); // 🚀 Sincroniza o AppCore
             } else alert("Erro: " + res.error);
           })
           .withFailureHandler((err) => { this.syncBusy = false; alert("Erro no servidor."); })
-          .apiExcluirLinhasEmLote(this.abaAtiva, linhas.map(l => l + offset));
+          .apiExcluirLinhasEmLote(this.abaAtiva, linhasReais); // Array exato de linhas
       } else { this.syncBusy = false; }
     },
 
@@ -397,39 +462,74 @@ window.BancoDeDadosView = {
       colunas.forEach(col => { if (col !== 'AÇÕES') novoForm[col] = ""; });
       this.modalAdd.form = novoForm;
       this.modalAdd.visivel = true;
-      this.$nextTick(() => lucide.createIcons());
+      this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
     },
 
     fecharModalAdd() { this.modalAdd.visivel = false; this.modalAdd.form = {}; },
 
     confirmarAdicao() {
-      const dados = [Object.values(this.modalAdd.form)];
+      const chaves = Object.keys(this.modalAdd.form);
+      const valores = chaves.map(k => this.modalAdd.form[k]);
+      const dados = [valores];
+      
       this.syncBusy = true;
       this.fecharModalAdd();
       
       if (typeof google !== 'undefined') {
         google.script.run
           .withSuccessHandler((res) => {
-            if (res.success) this.sincronizarBanco();
+            if (res.success) {
+               // 🚀 O Banco só apita para o Maestro. O AppCore baixa tudo e devolve o dbRaw atualizado!
+               this.$emit('refresh');
+            }
             else { alert("Erro ao salvar: " + res.error); this.syncBusy = false; }
           })
           .withFailureHandler((err) => {
             alert("Falha de comunicação com o servidor.");
             console.error(err);
-            this.syncBusy = false; // DESLIGA O SPINNER EM CASO DE FALHA FATAL
+            this.syncBusy = false;
           })
           .apiAdicionarLinhas(this.abaAtiva, dados);
       } else {
-        this.syncBusy = false; // DESLIGA O SPINNER SE TESTADO LOCALMENTE
-        console.warn("API do Google não encontrada (modo local).");
+        this.syncBusy = false;
       }
     },
 
-    calcularSomaSelecao() {
+  calcularSomaSelecao() {
       if (!this.hot) return;
       const selection = this.hot.getSelected();
       let soma = 0;
       let conta = 0;
+
+      // 📖 BUSCA O MAPA DA ABA: Tenta localizar as regras no dicionário do Tradutor
+      const namespace = this.abaAtiva.toUpperCase();
+      const dicionarioAba = (window.Tradutor && window.Tradutor.DICIONARIO) ? window.Tradutor.DICIONARIO[namespace] : null;
+
+      const isColunaNumerica = (nome) => {
+         const n = String(nome).toUpperCase();
+         
+         // 🎯 REGRA 1: Se a coluna está no dicionário, respeitamos o tipo definido lá
+         if (dicionarioAba && dicionarioAba.map && dicionarioAba.map[nome]) {
+            const type = dicionarioAba.map[nome].type;
+            // Permitimos soma para qualquer tipo quantitativo
+            return ['moeda', 'numero', 'percentual'].includes(type);
+         }
+
+         // 🛡️ REGRA 2 (Fallback): Se for uma aba nova ou não mapeada, usamos o radar de nomes
+         return n.includes('QTD') || n.includes('R$') || n.includes('PREÇO') || 
+                n.includes('SPOT') || n.includes('VALOR') || n.includes('CUSTO') || 
+                n.includes('PRÊMIO') || n.includes('P/L') || n.includes('NOCIONAL') ||
+                n.includes('TOTAL') || n.includes('SALDO') || n.includes('RESULTADO') ||
+                n.includes('THETA') || n.includes('DELTA') || n.includes('VEGA') || n.includes('GAMMA');
+      };
+
+      const limparNum = (val) => {
+        if (typeof val === 'number') return val;
+        if (!val || val === "-" || val === "---") return 0;
+        // Agora remove também o sinal de '%' para processar percentuais
+        const limpo = String(val).replace(/[R$\s.%]/g, '').replace(',', '.');
+        return parseFloat(limpo) || 0;
+      };
 
       if (selection) {
         selection.forEach(([r1, c1, r2, c2]) => {
@@ -441,11 +541,10 @@ window.BancoDeDadosView = {
           for (let r = startRow; r <= endRow; r++) {
             for (let c = startCol; c <= endCol; c++) {
               const val = this.hot.getDataAtCell(r, c);
-              const header = this.hot.getColHeader(c); // Pega o nome da coluna
+              const header = this.hot.getColHeader(c);
 
-              // Só tenta converter e somar se a coluna for do tipo financeiro ou quantidade
-              if (Tradutor._isFinanceiro(header) || header.toUpperCase().includes('QTD')) {
-                 const num = Tradutor.limparNumero(val);
+              if (isColunaNumerica(header)) {
+                 const num = limparNum(val);
                  if (typeof num === 'number' && !isNaN(num) && val !== "" && val !== null) {
                    soma += num;
                    conta++;
@@ -457,7 +556,6 @@ window.BancoDeDadosView = {
       }
       this.statsSelecao = { soma, conta, media: conta > 0 ? soma / conta : 0 };
     },
-
 
     formatarNumero(val) {
       if (!val) return "0,00";

@@ -124,7 +124,7 @@
             <p class="text-[9px] uppercase tracking-widest font-bold text-slate-400 mt-0.5">Registros salvos na base</p>
           </div>
         </div>
-        <button @click="carregarHistorico" class="btn-action bg-white border border-slate-200 text-slate-400 hover:text-brand-indigo hover:bg-indigo-50 px-3 py-2 rounded-xl shadow-sm transition-all" title="Atualizar Histórico">
+        <button @click="$emit('refresh')" class="btn-action bg-white border border-slate-200 text-slate-400 hover:text-brand-indigo hover:bg-indigo-50 px-3 py-2 rounded-xl shadow-sm transition-all" title="Atualizar Histórico">
           <i data-lucide="refresh-cw" class="w-4 h-4"></i>
         </button>
       </div>
@@ -167,11 +167,17 @@
               <td class="px-5 py-3 text-slate-500">{{ item.data }}</td>
               <td class="px-5 py-3 text-right font-bold">{{ item.preco }}</td>
               <td class="px-5 py-3 text-center">
+
                 <button @click="confirmarExclusao(item.linhaReal, item.ativo)" :disabled="isDeleting === item.linhaReal"
                   class="p-1.5 mx-auto text-slate-300 hover:text-brand-rose hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-100" title="Excluir Registro da Planilha">
-                  <span v-if="isDeleting === item.linhaReal" class="animate-spin inline-block w-4 h-4 border-2 border-rose-200 border-t-brand-rose rounded-full"></span>
-                  <i v-else data-lucide="trash-2" class="w-4 h-4"></i>
+                  
+                  <div v-if="isDeleting === item.linhaReal" class="animate-spin w-4 h-4 border-2 border-rose-200 border-t-brand-rose rounded-full"></div>
+                  <div v-show="isDeleting !== item.linhaReal">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                  </div>
+                  
                 </button>
+
               </td>
             </tr>
           </tbody>
@@ -212,21 +218,56 @@
 <script>
 window.NectonImport = {
   template: '#necton-import-template',
+  props: {
+    data: { type: Array, default: () => [] } 
+  },
   data() {
     return {
       rawText: '',
       parsedData: [],
-      history: [],
-      isLoadingHistory: false,
       isSaving: false,
       isDeleting: null,
       modalExclusao: { isOpen: false, linhaReal: null, ativo: null } 
     };
   },
+  computed: {
+    history() {
+      if (!this.data || this.data.length === 0) return [];
+      
+      return this.data.map((item, index) => {
+        let dataFormatada = '---';
+        if (item.timestampOrdem instanceof Date) {
+            dataFormatada = item.timestampOrdem.toLocaleString('pt-BR');
+        } else if (item.timestampOrdem) {
+            dataFormatada = String(item.timestampOrdem);
+        }
+
+        return {
+          // 🚀 FIX: Tenta usar o carimbo absoluto primeiro, se falhar, usa o index
+          linhaReal: item.linhaRealExcel || (index + 2), 
+          ativo: item.simboloOpcao || '---',
+          status: item.orderStatus || '---',
+          tipo: item.orderType || '---',
+          direcao: item.direcaoTrade || '---',
+          qtd: item.quantidade || item.quantidadeOferta || 0,
+          preco: window.Tradutor ? window.Tradutor.formatarMoeda(item.premioAtual) : item.premioAtual,
+          data: dataFormatada 
+        };
+      });
+    },
+    isLoadingHistory() {
+      return false; 
+      }
+    },
   mounted() {
-    this.carregarHistorico();
     if (typeof lucide !== 'undefined') {
       lucide.createIcons();
+    }
+  },
+  // 🚀 A SOLUÇÃO DO BOTÃO INVISÍVEL ESTÁ AQUI:
+  updated() {
+    if (typeof lucide !== 'undefined') {
+      this.$nextTick(() => lucide.createIcons());
     }
   },
   methods: {
@@ -238,7 +279,6 @@ window.NectonImport = {
       
       const rawLines = this.rawText.split('\n');
       const lines = rawLines.map(l => l.trim()).filter(l => l.length > 0);
-      
       const validData = [];
 
       for (let i = 0; i < lines.length; i++) {
@@ -246,7 +286,6 @@ window.NectonImport = {
         
         if (line.includes('\t')) {
           const numCols = line.split('\t').map(c => c.trim());
-          
           if (numCols.length >= 8 && i >= 4) {
             let direcao = lines[i - 1].trim().toUpperCase();
             let tipo = lines[i - 2].replace(/\t/g, '').trim(); 
@@ -260,13 +299,10 @@ window.NectonImport = {
               numCols[8], numCols[9], ''
             ];
 
-            if (ativo !== 'ATIVO') {
-              validData.push(row);
-            }
+            if (ativo !== 'ATIVO') validData.push(row);
           }
         }
       }
-      
       this.parsedData = validData;
     },
 
@@ -279,18 +315,15 @@ window.NectonImport = {
       this.parsedData = [];
     },
 
-    // 1. CRIAR (Usando o motor genérico de inserção em lote)
     salvar() {
       if (this.parsedData.length === 0) return;
-      
       this.isSaving = true;
       google.script.run
         .withSuccessHandler((res) => {
           this.isSaving = false;
           if (res && res.success) {
             this.limpar();
-            this.carregarHistorico(); 
-            this.$emit('refresh'); // Avisa o AppCore que há novos dados na planilha!
+            this.$emit('refresh'); 
           } else {
             alert("Erro ao salvar: " + (res.error || res.message));
           }
@@ -302,44 +335,6 @@ window.NectonImport = {
         .apiAdicionarLinhas('Necton_Import', this.parsedData);
     },
 
-    // 2. LER DADOS (O Frontend agora recebe a aba inteira e ele mesmo filtra as colunas)
-    carregarHistorico() {
-      this.isLoadingHistory = true;
-      google.script.run
-        .withSuccessHandler((res) => {
-          if (res && res.success && res.raw['Necton_Import']) {
-            const dadosBrutos = res.raw['Necton_Import'];
-            const resultado = [];
-            
-            // Lendo da linha 1 (pulando o cabeçalho na linha 0)
-            for (let i = 1; i < dadosBrutos.length; i++) {
-              // FILTRO ANTI-SUJEIRA: Ignora linhas onde a coluna 'Ativo' está vazia
-              if (dadosBrutos[i][0] && dadosBrutos[i][0].toString().trim() !== "") {
-                resultado.push({
-                  linhaReal: i + 1, // Salva o número real da linha para o botão Excluir
-                  ativo: dadosBrutos[i][0],
-                  status: dadosBrutos[i][1],
-                  tipo: dadosBrutos[i][2],
-                  direcao: dadosBrutos[i][3],
-                  qtd: dadosBrutos[i][4],
-                  preco: dadosBrutos[i][11],
-                  data: dadosBrutos[i][13]
-                });
-              }
-            }
-            this.history = resultado;
-          } else {
-            this.history = [];
-          }
-          this.isLoadingHistory = false;
-        })
-        .withFailureHandler((err) => {
-          this.isLoadingHistory = false;
-          console.warn("Erro ao buscar histórico: ", err);
-        })
-        .getInitialData(); // Puxa do nosso Buffet Livre universal!
-    },
-
     confirmarExclusao(linhaReal, ativo) {
       this.modalExclusao = { isOpen: true, linhaReal, ativo };
     },
@@ -348,22 +343,26 @@ window.NectonImport = {
       this.modalExclusao = { isOpen: false, linhaReal: null, ativo: null };
     },
 
-    // 3. DELETAR (Usando a Lixeira Segura Universal)
     executarExclusao() {
-      const { linhaReal, ativo } = this.modalExclusao; 
+      // 🚀 FIX: Trava matemática que evita enviar comandos "null" para o Sheets
+      const linhaAlvo = parseInt(this.modalExclusao.linhaReal, 10);
+      const ativoAlvo = String(this.modalExclusao.ativo);
       
-      this.isDeleting = linhaReal;
+      this.isDeleting = linhaAlvo;
       this.fecharModal(); 
+      
+      if (isNaN(linhaAlvo) || linhaAlvo < 1) {
+          alert("Erro de segurança: Número de linha inválido.");
+          this.isDeleting = null;
+          return;
+      }
       
       google.script.run
         .withSuccessHandler((res) => {
           if (res && res.success) {
-            this.carregarHistorico();
-            this.$emit('refresh'); // Avisa o Dashboard que uma operação sumiu
+            this.$emit('refresh'); 
           } else {
-            // Se houve conflito de sincronia (linha errada), avisa e recarrega os dados reais
             alert(res.error || "Erro ao excluir a linha.");
-            this.carregarHistorico();
           }
           this.isDeleting = null; 
         })
@@ -371,7 +370,7 @@ window.NectonImport = {
           alert("Falha de conexão com a planilha: " + err);
           this.isDeleting = null; 
         })
-        .apiExcluirLinhaSegura('Necton_Import', linhaReal, ativo); 
+        .apiExcluirLinhaSegura('Necton_Import', linhaAlvo, ativoAlvo); 
     }
   }
 };
