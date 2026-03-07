@@ -61,9 +61,9 @@
         </div>
 
         <button @click="solicitarAuditoriaIA" :disabled="loadingIA"
-                class="btn-action bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-xs tracking-widest transition-all hover:bg-brand-indigo shadow-lg active:scale-95 disabled:opacity-50 flex items-center gap-3 whitespace-nowrap">
-          <i v-if="!loadingIA" data-lucide="sparkles" class="w-4 h-4 text-indigo-300"></i>
-          <div v-else class="w-4 h-4 animate-spin border-2 border-white/30 border-t-white rounded-full"></div>
+                class="bg-white text-indigo-900 border border-indigo-100 px-6 py-3 rounded-xl font-black text-xs tracking-widest transition-all hover:bg-indigo-50 hover:border-indigo-200 hover:shadow-md shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-3 whitespace-nowrap">
+          <i v-if="!loadingIA" data-lucide="sparkles" class="w-4 h-4 text-brand-indigo"></i>
+          <div v-else class="w-4 h-4 animate-spin border-2 border-indigo-200 border-t-brand-indigo rounded-full"></div>
           {{ loadingIA ? 'PROCESSANDO...' : 'SOLICITAR AUDITORIA' }}
         </button>
       </div>
@@ -109,7 +109,7 @@
                   <div class="flex items-center gap-2">
                     <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Vencimento</span>
                     <div class="text-[11px] font-mono-data font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                      {{ getVal(op, 'Vencimento') }} <span class="text-brand-rose ml-1">({{ getVal(op, 'DTE') }}d)</span>
+                      {{ formatData(getVal(op, 'Vencimento')) }} <span class="text-brand-rose ml-1">({{ getVal(op, 'DTE') }}d)</span>
                     </div>
                   </div>
                   <div>
@@ -234,7 +234,7 @@
                 <div v-for="field in configFields.filter(f => !['QUANTIDADE', 'QTD'].includes(f.key))" :key="field.key" class="flex flex-col">
                   <span class="text-slate-400 text-[8px] font-black uppercase tracking-widest mb-1">{{ field.label }}</span>
                   <span class="text-slate-800 font-mono-data font-bold text-[10px]">
-                    {{ field.key === 'GANHO MAXIMO' ? formatMoeda(getValExato(op, 'GANHO MAXIMO')) : formatValue(field, getVal(op, field.key)) }}
+                    {{ formatValue(field, getVal(op, field.key)) }}
                   </span>
                 </div>
               </div>
@@ -299,21 +299,23 @@ const consultoriaCurrencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'cu
 
 window.ConsultoriaView = {
   props: {
+    db: { type: Object, default: () => ({ cockpit: [], dadosAtivos: [] }) },
+    statsPreCalculados: { type: Object, default: () => ({}) },
     isMobile: Boolean,  // 📱 Adicionar esta
     isLoading: Boolean,  // 🚀 Adicionar esta
-    statsPreCalculados: Object, // 🚀 Recebe a maleta do Agregador
     historico: { type: Array, default: () => [] }
   },
   template: '#consultoria-view-template',
   data() {
     return {
       loadingIA: false,
+      analisesIA: {},
       configFields: [
         { key: 'QUANTIDADE', label: 'Qtd', type: 'num' },
         { key: 'PRÊMIO (PM)', label: 'PM', type: 'moeda' },
         { key: 'PRÊMIO ATUAL', label: 'Atual', type: 'moeda' },
-        { key: 'LUCRO MAX', label: 'Lucro Máx', type: 'currency' },
-        { key: 'GANHO MAXIMO', label: 'Ganho Máx', type: 'currency' },
+        { key: 'LUCRO MAX', label: 'Lucro Máx', type: 'pct' },
+        { key: 'GANHO MÁXIMO', label: 'Ganho Máx', type: 'moeda' },
         { key: 'P/L TOTAL %', label: 'P/L %', type: 'pct' },
         { key: 'DELTA', label: 'Delta Δ', type: 'num' },
         { key: 'NOCIONAL', label: 'Nocional', type: 'moeda' }
@@ -331,16 +333,59 @@ window.ConsultoriaView = {
 
     // 1. Filtra e ordena os cards na tela
     operacoesOrdenadas() {
-      if (!this.operations || this.operations.length === 0) return [];
-      return [...this.operations]
-        .filter(op => String(this.getVal(op, 'STATUS')).trim().toUpperCase() === 'ATIVO')
+      const cockpit = this.db.cockpit || [];
+      
+      // 🚀 REDUNDÂNCIA DE SEGURANÇA: Tenta a gaveta nova, se não tiver, tenta a antiga.
+      const baseTecnica = (this.db.dadosTendencia && this.db.dadosTendencia.length > 0) 
+                          ? this.db.dadosTendencia 
+                          : (this.db.dadosAtivos || []);
+
+      return cockpit
+        .filter(op => {
+          const st = String(this.getVal(op, 'STATUS')).toUpperCase();
+          return st === 'ATIVO' || st === 'ABERTO';
+        })
+        .map(op => {
+          const ticker = String(this.getVal(op, 'TICKER')).trim().toUpperCase();
+          const codigo = String(this.getVal(op, 'CÓDIGO')).trim().toUpperCase();
+          
+          // Cria um ID único para cada card (ex: CSNA3_CSNAO928)
+          const idUnico = `${ticker}_${codigo}`;
+          
+          // Encontra os dados técnicos (IFR, Médias, Tendência)
+          const infoTecnica = baseTecnica.find(t => {
+            const tTick = String(t.tickerAtivo || t.ticker || t.TICKER || "").trim().toUpperCase();
+            return tTick === ticker && ticker !== "";
+          }) || {};
+
+          // 🚀 Injeta a resposta da IA armazenada no nosso Cofre
+          const respostaIA = this.analisesIA[idUnico] || null;
+
+          // Retorna a fusão de todos os dados
+          return { ...op, ...infoTecnica, respostaIA, idUnico };
+        })
         .sort((a, b) => {
-          const dateA = this._parseDate(this.getVal(a, 'Vencimento'));
-          const dateB = this._parseDate(this.getVal(b, 'Vencimento'));
-          if (dateA - dateB !== 0) return dateA - dateB;
-          const tickA = String(this.getVal(a, 'Ticker') || '');
-          const tickB = String(this.getVal(b, 'Ticker') || '');
-          return tickA.localeCompare(tickB);
+          // 1. Prioridade Máxima: Vencimento (O mais próximo/recente primeiro)
+          const dataA = this._parseDate(this.getVal(a, 'VENCIMENTO'));
+          const dataB = this._parseDate(this.getVal(b, 'VENCIMENTO'));
+          
+          if (dataA !== dataB) {
+            return dataA - dataB; // Ordem crescente de data
+          }
+          
+          // 2. Segunda Prioridade: Ticker (Ordem Alfabética A-Z)
+          const tickA = String(this.getVal(a, 'TICKER')).toUpperCase();
+          const tickB = String(this.getVal(b, 'TICKER')).toUpperCase();
+          
+          if (tickA !== tickB) {
+            return tickA.localeCompare(tickB);
+          }
+          
+          // 3. Terceira Prioridade: Código da Opção (Ordem Alfabética A-Z)
+          const codA = String(this.getVal(a, 'CÓDIGO')).toUpperCase();
+          const codB = String(this.getVal(b, 'CÓDIGO')).toUpperCase();
+          
+          return codA.localeCompare(codB);
         });
     },
 
@@ -383,47 +428,99 @@ window.ConsultoriaView = {
       const cacheKey = 'cache_auditoria_gemini';
       const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
       
-      this.operacoesOrdenadas.forEach(op => {
-        const idUnico = `${this.getVal(op, 'Ticker')}_${this.getVal(op, 'Código')}`;
+      const novasAnalises = { ...this.analisesIA };
+      
+      // Lê o cache e joga para o dicionário reativo
+      Object.keys(cache).forEach(idUnico => {
         // Se existe análise no cache e ela tem menos de 24 horas, restaura
-        if (cache[idUnico] && (Date.now() - cache[idUnico].timestamp < 24 * 60 * 60 * 1000)) {
-          op.respostaIA = cache[idUnico].texto;
+        if (Date.now() - cache[idUnico].timestamp < 24 * 60 * 60 * 1000) {
+          novasAnalises[idUnico] = cache[idUnico].texto;
         }
       });
+      
+      // Atualiza a tela instantaneamente
+      this.analisesIA = novasAnalises;
     },
 
     // --- LÓGICA DE DADOS (Adaptada para receber 'op' como parâmetro) ---
     // Traduz a chave do Design para a chave do Backend
+
     getVal(op, key) {
-      if (!op) return null;
-      
-      const dicionarioV5 = {
-        'Ticker': 'tickerAtivo',
-        'Código': 'simboloOpcao',
-        'Spot': 'spotPrice',
-        'Strike': 'strike',
-        'IFR14': 'ifr14',           // Nomes que vêm do robô de Gregas/Indicadores
+      if (!op) return '';
+      const search = String(key || '').toUpperCase().trim();
+      const keys = Object.keys(op);
+
+      // 1. Mapa de Equivalência (View Label -> Tradutor Key)
+      const mapaV5 = {
+        'TICKER': 'tickerAtivo',
+        'CÓDIGO': 'simboloOpcao',
+        'CODIGO': 'simboloOpcao',
+        'CÓDIGO OPÇÃO': 'simboloOpcao',
+        'SPOT': 'spot',
+        'STRIKE': 'strike',
+        'QUANTIDADE': 'quantidade',
+        'QTD': 'quantidade',
+        'VENCIMENTO': 'dataVencimento',
+        'VENDA/COMPRA': 'direcaoTrade',
+        'DIREÇÃO': 'direcaoTrade',
+        'PM': 'premioMedio',
+        'PRÊMIO (PM)': 'premioMedio',
+        'ATUAL': 'premioAtual',
+        'PRÊMIO ATUAL': 'premioAtual',
+        'LUCRO MAX': 'potencialLucroPct',
+        'LUCRO MÁX': 'potencialLucroPct',
+        'GANHO MAX': 'ganhoMaximo',
+        'GANHO MAXIMO': 'ganhoMaximo',
+        'GANHO MÁXIMO': 'ganhoMaximo',
+        'P/L %': 'plTotalPct',
+        'P/L TOTAL %': 'plTotalPct',
+        'P/L TOTAL': 'plTotalUnitario',
+        'NOCIONAL': 'nocional',
+        'DELTA': 'delta',
+        'IFR14': 'ifr14',
+        'MONEYNESS': 'moneyness',
+        'STATUS': 'status',
+        'DTE': 'dteCorridos',
+
+        // --- 🚀 INDICADORES TÉCNICOS (O FIM DO N/D) ---
+        'VEREDITO_TENDENCIA': 'vereditoTendencia',
+        'STATUS_IFR': 'statusIfr',
+        'STATUS_BOLLINGER': 'statusBollinger',
+        'IFR14': 'ifr14',
+        'B. SUP': 'bandaSup',
+        'BANDA_SUP': 'bandaSup',
+        'B. INF': 'bandaInf',
+        'BANDA_INF': 'bandaInf',
+        'LARGURA': 'larguraBanda',
+        'LARGURA_BANDA': 'larguraBanda',
         'MMA5': 'mma5',
         'MMA20': 'mma20',
         'MMA200': 'mma200',
-        'Banda_Inf': 'bandaInf',
-        'Banda_Sup': 'bandaSup',
-        'Vol_Relativa': 'volRelativa'
+        'DIST. M200': 'distMma200',
+        'DIST_MMA200': 'distMma200',
+        'VOL_RELATIVO': 'volRelativo'
+
       };
-      
-      const chaveCorreta = dicionarioV5[key] || key;
-      
-      // Tenta a chave nova do V5 primeiro. Se não achar, tenta a bruta.
-      return op[chaveCorreta] !== undefined ? op[chaveCorreta] : (op[key] !== undefined ? op[key] : null);
+
+      // Tenta tradução direta
+      if (mapaV5[search] && op[mapaV5[search]] !== undefined) return op[mapaV5[search]];
+
+      // 2. Normalização Agressiva (Remove acentos, espaços, parênteses e símbolos)
+      const norm = (s) => String(s || '').normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .replace(/[\(\)\s\_\/\%\.\,]/g, "");
+        
+      const target = norm(search);
+
+      // Busca por chave normalizada nas propriedades do objeto
+      const foundKey = keys.find(k => norm(k) === target || norm(k).includes(target));
+      return foundKey ? op[foundKey] : '';
     },
     
     getValExato(op, targetKey) {
-      if (!op) return '';
-      const keys = Object.keys(op);
-      const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
-      const target = norm(targetKey);
-      const foundKey = keys.find(k => norm(k) === target);
-      return foundKey ? op[foundKey] : '';
+      // Delegamos a inteligência para o getVal principal, que possui o mapaV5
+      return this.getVal(op, targetKey);
     },
 
     getDistSpot(op) {
@@ -520,17 +617,22 @@ window.ConsultoriaView = {
     // 5. Formatador Universal para os Novos Indicadores Numéricos
     formatIndicador(op, key, isCurrency = false) {
       const val = this.getVal(op, key);
-      if (!val && val !== 0) return 'N/D';
       
-      const num = parseFloat(String(val).replace(/[R$.%]/g, '').replace(',', '.'));
-      if (isNaN(num)) return val; // Se for texto, devolve o texto intacto
+      // Se for vazio ou indefinido (mas permitindo o Zero)
+      if (val === undefined || val === null || val === '') return 'N/D';
+      
+      // Usa o parser inteligente que não destrói os números decimais nativos
+      const num = this._parseNum(val);
+      
+      // Se não for possível converter num número válido, devolve o que veio
+      if (isNaN(num)) return val;
 
-      // Se for as Médias (MMA5, MMA20, MMA200) ou Bandas, formata como Moeda (USANDO O CACHE)
+      // Se for as Médias (MMA5, MMA20, MMA200) ou Bandas, formata como Moeda
       if (isCurrency) {
         return consultoriaCurrencyFormatter.format(num);
       }
       
-      // Se for IFR14, Vol_Relativo ou Largura da Banda, usa 2 casas decimais
+      // Se for IFR14, Vol_Relativo ou Largura da Banda, usa 2 casas decimais no padrão PT-BR
       return num.toFixed(2).replace('.', ',');
     },
 
@@ -542,28 +644,38 @@ window.ConsultoriaView = {
       return parseFloat(clean) || 0;
     },
     
-    _parseDate(str) {
-      if (!str) return new Date(2099, 1, 1);
-      // Garante que pega apenas a data se vier data + hora do Sheets
-      const cleanStr = String(str).split(' ')[0];
-      const p = cleanStr.split('/');
-      return p.length < 3 ? new Date(2099, 1, 1) : new Date(p[2], p[1]-1, p[0]);
+    _parseDate(val) {
+      if (!val) return 0;
+      const d = (val instanceof Date) ? val : new Date(val);
+      return isNaN(d.getTime()) ? 0 : d.getTime();
     },
 
     formatValue(field, val) {
-      if (!val && val !== 0) return '-';
+      if (val === undefined || val === null || val === '') return '-';
+      
       const n = this._parseNum(val);
-      if (field.type === 'moeda') return this.formatMoeda(val);
+      
+      if (field.type === 'moeda') return this.formatMoeda(val); // Passamos o val original para evitar perder precisão antes do parser interno
       if (field.key === 'DELTA') return n.toFixed(4);
-      if (field.label.includes('Máx') || field.type === 'pct' || field.key.includes('PCT')) {
-        return n.toFixed(2).replace('.', ',') + ' %';
+      
+      // Como o Tradutor entrega 1.55 para 155%, nós sempre multiplicamos por 100 aqui
+      if (field.type === 'pct') {
+        return (n * 100).toFixed(2).replace('.', ',') + ' %';
       }
+      
       return val;
     },
     
-    formatMoeda(v) {
-      // 🚀 USANDO O CACHE (SEM CRIAR 'NEW' A CADA CHAMADA)
-      return consultoriaCurrencyFormatter.format(this._parseNum(v));
+    formatMoeda(val) {
+      const n = this._parseNum(val);
+      // Se o valor for zero e o campo for PM ou Lucro, pode ser que o dado não existia
+      if (n === 0 && val === undefined) return "-";
+      
+      return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2
+      }).format(n);
     },
 
 
@@ -584,17 +696,20 @@ window.ConsultoriaView = {
           this.loadingIA = false;
           if (respostaServidor.success && respostaServidor.data) {
             
-            // --- NOVA LÓGICA DE PERSISTÊNCIA ---
             const cacheKey = 'cache_auditoria_gemini';
             let cacheAtual = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+            const novasAnalises = { ...this.analisesIA };
 
             respostaServidor.data.forEach(item => {
+              // Pega a operação que foi analisada usando o index
               const op = this.operacoesOrdenadas[item.id];
               if (op) {
-                const idUnico = `${this.getVal(op, 'Ticker')}_${this.getVal(op, 'Código')}`;
-                op.respostaIA = item.analise;
+                const idUnico = op.idUnico;
                 
-                // Salva no dicionário de cache usando o Ativo_Código como chave
+                // 🚀 Salva no Cofre reativo
+                novasAnalises[idUnico] = item.analise;
+                
+                // Salva no LocalStorage
                 cacheAtual[idUnico] = {
                   texto: item.analise,
                   timestamp: Date.now()
@@ -602,8 +717,9 @@ window.ConsultoriaView = {
               }
             });
 
+            // Atualiza as variáveis, forçando a tela a renderizar os textos
+            this.analisesIA = novasAnalises;
             localStorage.setItem(cacheKey, JSON.stringify(cacheAtual));
-            // LOG REMOVIDO PARA PERFORMANCE
           }
         })
 
@@ -642,6 +758,26 @@ window.ConsultoriaView = {
         if (spot < mean) return 'text-rose-600 font-black';
         
         return 'text-slate-700';
+    },
+
+    // --- DENTRO DE methods: { ... } na ConsultoriaView.html ---
+
+    formatData(val) {
+      if (!val || val === "") return "-";
+      
+      // Tenta converter para objeto Date caso receba string ou timestamp
+      const d = (val instanceof Date) ? val : new Date(val);
+      
+      // Se for uma data válida, formata para o padrão brasileiro
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      }
+      
+      return val; // Fallback para o valor original se a conversão falhar
     }
 
   },

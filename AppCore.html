@@ -6,322 +6,476 @@
 const { createApp, ref, shallowRef, computed, onMounted, provide } = Vue;
 
 const app = createApp({
-    setup() {
-        // ====================================================================
-        // 1. ESTADO GLOBAL REATIVO (Single Source of Truth)
-        // ====================================================================
-        const db = shallowRef({ cockpit: [], resumoGerencial: { timestamp: '--:--' }, configGlobal: {}, dadosAtivos: [], necton: [], calcGreeks: [], historico250d: [] }); 
-        const cuboOlap = ref(window.Agregador ? window.Agregador._gerarCuboVazio() : {});
+  setup() {
+    // ====================================================================
+    // 1. ESTADO GLOBAL REATIVO (Single Source of Truth)
+    // ====================================================================
 
-        const isLoading = ref(true);
-        const hasError = ref(false);
-        const errorMessage = ref('');
-        const lastSync = ref('');
-        const status = ref('Iniciando...'); // Legado UI
+    const db = shallowRef({ cockpit: [], resumoGerencial: { timestamp: '--:--' }, configGlobal: {}, dadosAtivos: [], dadosTendencia: [], necton: [], calcGreeks: [], historico250d: [] });
 
-        // ====================================================================
-        // 2. CHASSI ORIGINAL: ROTEAMENTO E MENU
-        // ====================================================================
-        const currentView = ref('cockpit'); 
-        const isCollapsed = ref(true);
+    const cuboOlap = ref(window.Agregador ? window.Agregador._gerarCuboVazio() : {});
 
-        // 1. Lê o Menu Oficial do arquivo LayoutConfig
-        const menu = ref(window.APP_MENU || []);  
-        
-        const currentMenuLabel = computed(() => {
-            const item = menu.value.find(m => String(m.id).toLowerCase() === String(currentView.value).toLowerCase());
-            return item ? item.label : 'Dashboard';
-        });
-        
-        // 2. O MOTOR DE RENDERIZAÇÃO: Pega o layout da tela atual (Imune a Maiúsculas)
-        const currentLayout = computed(() => {
-              const map = window.LAYOUT_MAP || {};
-              const view = String(currentView.value).toLowerCase();
-              return map[view] || [];
-            });
+    const isLoading = ref(true);
+    const hasError = ref(false);
+    const errorMessage = ref('');
+    const lastSync = ref('');
+    const status = ref('Iniciando...'); // Legado UI
 
-        const toggleSidebar = () => { 
-            isCollapsed.value = !isCollapsed.value;
-            setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 310);
-        };
+    // ====================================================================
+    // 2. CHASSI ORIGINAL: ROTEAMENTO E MENU
+    // ====================================================================
+    const currentView = ref('cockpit'); 
+    const isCollapsed = ref(true);
 
-        const navigate = (viewName) => {
-            currentView.value = viewName;
-            if (isMobile.value) isCollapsed.value = true;
-            // Força o Lucide a renderizar ícones na troca de tela
-            setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100);
-        };
+    // 1. Lê o Menu Oficial do arquivo LayoutConfig
+    const menu = ref(window.APP_MENU || []);  
+    
+    const currentMenuLabel = computed(() => {
+      const item = menu.value.find(m => String(m.id).toLowerCase() === String(currentView.value).toLowerCase());
+      return item ? item.label : 'Dashboard';
+    });
+    
+    // 2. O MOTOR DE RENDERIZAÇÃO: Pega o layout da tela atual (Imune a Maiúsculas)
+    const currentLayout = computed(() => {
+      const map = window.LAYOUT_MAP || {};
+      const view = String(currentView.value).toLowerCase();
+      return map[view] || [];
+    });
 
-        const dynamicSummaryData = computed(() => {
-              const s = cuboOlap.value || {};
-              const cfg = db.value.configGlobal || {};
-              
-              // Mapeamento exato baseado nos nomes de colunas e métricas calculadas
-              return [
-                { key: 'PL_TOTAL_PCT', label: 'P/L %',    value: s.plPctMedio || 0, type: 'percentage', active: true },
-                { key: 'PL_TOTAL',     label: 'P/L Total', value: s.plTotal || 0,    type: 'currency',   active: true },
-                { key: 'NOCIONAL',     label: 'Nocional',  value: s.nocionalTotal || 0, type: 'currency', active: true },
-                { key: 'THETA',        label: 'Theta',     value: s.thetaTotal || 0,    type: 'currency', active: true },
-                { key: 'IV_CURRENT',   label: 'IV Médio',  value: s.ivMedio || 0,       type: 'percentage', active: true }
-              ];
-            });
+    const toggleSidebar = () => { 
+      isCollapsed.value = !isCollapsed.value;
+      setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 310);
+    };
 
-        // ====================================================================
-        // 3. CHASSI ORIGINAL: SENSOR MOBILE E FATIAMENTO
-        // ====================================================================
+    const navigate = (viewName) => {
+      currentView.value = viewName;
+      if (isMobile.value) isCollapsed.value = true;
+      // Força o Lucide a renderizar ícones na troca de tela
+      setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100);
+    };
 
-        const isMobile = ref(false);
+    const dynamicSummaryData = computed(() => {
+      const s = cuboOlap.value || {};
+      const cfg = db.value.configGlobal || {};
+      
+      // Mapeamento exato baseado nos nomes de colunas e métricas calculadas
+      return [
+        { key: 'PL_TOTAL_PCT', label: 'P/L %',    value: s.plPctMedio || 0, type: 'percentage', active: true },
+        { key: 'PL_TOTAL',     label: 'P/L Total', value: s.plTotal || 0,    type: 'currency',   active: true },
+        { key: 'NOCIONAL',     label: 'Nocional',  value: s.nocionalTotal || 0, type: 'currency', active: true },
+        { key: 'THETA',        label: 'Theta',     value: s.thetaTotal || 0,    type: 'currency', active: true },
+        { key: 'IV_CURRENT',   label: 'IV Médio',  value: s.ivMedio || 0,       type: 'percentage', active: true }
+      ];
+    });
 
-        const checkMobileStatus = () => {
-            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            const isMobileHardware = /android|ipad|iphone|ipod/i.test(userAgent.toLowerCase());
-            const isSmallScreen = window.innerWidth <= 1024; 
-            
-            isMobile.value = isMobileHardware || isSmallScreen;
-            if (isMobile.value) isCollapsed.value = true;
-        };
+    // ====================================================================
+    // 3. CHASSI ORIGINAL: SENSOR MOBILE E FATIAMENTO
+    // ====================================================================
 
-        // 🚀 A IGNIÇÃO: Dispara o sensor no momento ZERO em que o app nasce!
+    const isMobile = ref(false);
+
+    const checkMobileStatus = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+      const isMobileHardware = /android|ipad|iphone|ipod/i.test(userAgent.toLowerCase());
+      const isSmallScreen = window.innerWidth <= 1024; 
+      
+      isMobile.value = isMobileHardware || isSmallScreen;
+      if (isMobile.value) isCollapsed.value = true;
+    };
+
+    // 🚀 A IGNIÇÃO: Dispara o sensor no momento ZERO em que o app nasce!
+    checkMobileStatus();
+
+    // 🛡️ AMORTECEDOR (Debounce): Impede o Chrome de travar ao girar o celular
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
         checkMobileStatus();
+      }, 150); // Só recalcula o layout 150ms após o movimento parar
+    });
 
-        // 🛡️ AMORTECEDOR (Debounce): Impede o Chrome de travar ao girar o celular
-        let resizeTimer;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(() => {
-                checkMobileStatus();
-            }, 150); // Só recalcula o layout 150ms após o movimento parar
-        });
+    // Distribui os componentes do LAYOUT_MAP para os grids do Index.html
+    const topGridComponents = computed(() => {
+      if (!isMobile.value) return currentLayout.value; // No PC, mostra tudo no topo
+      
+      // No Celular, pega o que vem antes do Carrossel
+      const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
+      const seqIds = config.sequence.map(s => s.id);
+      const idx = currentLayout.value.findIndex(c => seqIds.includes(c.id));
+      return idx === -1 ? currentLayout.value : currentLayout.value.slice(0, idx);
+    });
 
-        // Distribui os componentes do LAYOUT_MAP para os grids do Index.html
-        const topGridComponents = computed(() => {
-              if (!isMobile.value) return currentLayout.value; // No PC, mostra tudo no topo
-              
-              // No Celular, pega o que vem antes do Carrossel
-              const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
-              const seqIds = config.sequence.map(s => s.id);
-              const idx = currentLayout.value.findIndex(c => seqIds.includes(c.id));
-              return idx === -1 ? currentLayout.value : currentLayout.value.slice(0, idx);
+    const mobileCarouselComponents = computed(() => {
+      if (!isMobile.value) return [];
+      const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
+      const seqIds = config.sequence.map(s => s.id);
+      return currentLayout.value.filter(c => seqIds.includes(c.id));
+    });
+
+    const bottomGridComponents = computed(() => {
+      if (!isMobile.value) return [];
+      const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
+      const seqIds = config.sequence.map(s => s.id);
+      const idx = currentLayout.value.findIndex(c => seqIds.includes(c.id));
+      if (idx === -1) return [];
+      return currentLayout.value.slice(idx).filter(c => !seqIds.includes(c.id));
+    });
+
+    const getMobileLayoutZones = computed(() => {
+      if (window.LayoutConfig && window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG) {
+        return window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG;
+      }
+      return { top: [], carousel: [], bottom: [] };
+    });
+
+    // ====================================================================
+    // 4. CHASSI ORIGINAL: POLLING E SYNC
+    // ====================================================================
+    const timerVisual = ref(300); // 5 minutos padrão
+    const isOrquestrando = ref(false);
+    const isAutoSyncEnabled = ref(false);
+    let pollingInterval = null;
+
+    const toggleAutoSync = () => {
+      isAutoSyncEnabled.value = !isAutoSyncEnabled.value;
+      if (isAutoSyncEnabled.value) {
+        timerVisual.value = 300; // Reinicia o relógio aos 5 min sempre que ligar
+      }
+    };
+
+    const formatCountdown = computed(() => {
+      const m = Math.floor(timerVisual.value / 60).toString().padStart(2, '0');
+      const s = (timerVisual.value % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    });
+
+    // O Coração do Smart Polling
+    const iniciarMotorRelogio = () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+      pollingInterval = setInterval(() => {
+        // Só diminui o tempo se estiver LIGADO e NÃO estiver carregando dados
+        if (isAutoSyncEnabled.value && !isLoading.value) {
+          if (timerVisual.value > 0) {
+            timerVisual.value--;
+          } else {
+            timerVisual.value = 300; // Reseta para 5 minutos
+            sincronizarDashboard();  // Dispara a atualização real!
+          }
+        }
+      }, 1000);
+    };
+
+    const dispararErro = (msg) => {
+      console.error("[APP_CORE] " + msg);
+      errorMessage.value = msg;
+      hasError.value = true;
+      isLoading.value = false;
+    };
+
+    // ====================================================================
+    // 5. MOTOR DE SINCRONIZAÇÃO EM ESTÁGIOS (LAZY FETCHING)
+    // ====================================================================
+    
+    const tempoCarga = ref(''); // Continua com a nossa Telemetria
+
+    const handleFailure = (err) => {
+      console.error("Erro na Sincronização:", err);
+      hasError.value = true;
+      errorMessage.value = String(err);
+      isLoading.value = false;
+      status.value = "Falha na Sincronização";
+      const st = document.getElementById('debug-status');
+      if(st) st.innerText = "Erro: " + err;
+    };       
+    
+    // --- 🚚 FASE 2: CARGA PESADA (Roda de forma invisível) ---
+    const carregarAbasPesadas = () => {
+      const st = document.getElementById('debug-status');
+      if(st) st.innerText = "Baixando dados técnicos (Background)...";
+      
+      // 🚀 CHAMA A NOVA FUNÇÃO DO BACKEND QUE SÓ PUXA DADOS PESADOS
+      google.script.run
+        .withSuccessHandler((response) => {
+          if (!response || !response.success) return;
+          try {
+            // Traduz apenas as abas pesadas que chegaram agora
+            const dadosTraduzidos = window.Tradutor.processarBancoCompleto(response.raw);
+            
+
+
+
+
+
+
+
+
+
+
+
+            // Atualiza o banco de dados fundindo o que já tínhamos (Cockpit) com o que chegou novo
+            db.value = {
+              ...db.value,
+              dadosAtivos: dadosTraduzidos.dadosAtivos || [],
+              dadosTendencia: dadosTraduzidos.dadosTendencia || [],
+              historico250d: dadosTraduzidos.historico250d || [],
+              calcGreeks: dadosTraduzidos.calcGreeks || [],
+              necton: dadosTraduzidos.necton || [],
+              analiseEstatistica: dadosTraduzidos.analiseEstatistica || [],
+              analiseFundamentalista: dadosTraduzidos.analiseFundamentalista || [],
+              analisePreditiva: dadosTraduzidos.analisePreditiva || [],
+              analiseHeatmap: dadosTraduzidos.analiseHeatmap || []
+            };
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+            // Agora que as abas técnicas chegaram, refazemos o JOIN do Cockpit para a Consultoria funcionar
+            const cockpitBruto = db.value.cockpit || [];
+            const dadosTecnicos = db.value.dadosTendencia || []; 
+            
+            const cockpitEnriquecido = cockpitBruto.map(op => {
+              const ticker = String(op.ticker || op.TICKER || op.Ativo || op['Ativo Spot'] || "").trim().toUpperCase();
+              const infoTecnica = dadosTecnicos.find(t => {
+                const tTicker = String(t.ticker || t.TICKER || "").trim().toUpperCase();
+                return tTicker === ticker && ticker !== "";
+              }) || {};
+
+              return { 
+                ...op, 
+                ...infoTecnica,
+                STATUS: String(op.status || op.STATUS || "INATIVO").toUpperCase(),
+                TICKER: ticker 
+              };
+            });
+            
+            // Salva o Cockpit superpoderoso de volta na memória
+            db.value.cockpit = cockpitEnriquecido;
+            
+            // Atualiza o relógio e avisa que o sistema está 100%
+            lastSync.value = new Date().toLocaleTimeString();
+            if(st) st.innerText = "Sistema Nominal (100% Carregado)";
+
+          } catch (err) {
+            console.error("Erro no processamento background:", err);
+          }
+        })
+        .getAbasPesadas(); // <-- CHAMA A NOVA ROTA
+    };
+
+
+    // --- 🚀 FASE 1: VOO RÁPIDO (Abertura do App) ---
+    const sincronizarDashboard = () => {
+      isLoading.value = true;
+      status.value = "Conectando...";
+      
+      const tempoInicio = performance.now(); 
+      const st = document.getElementById('debug-status');
+      if(st) st.innerText = "Aguardando Cockpit...";
+      
+      // 🚀 CHAMA A NOVA FUNÇÃO DO BACKEND QUE É LEVE E RÁPIDA
+      google.script.run
+        .withSuccessHandler((response) => {
+          const tempoBackend = performance.now();
+          const msBackend = tempoBackend - tempoInicio;
+
+          if (!response || !response.success) return handleFailure("Falha na API");
+          
+          try {
+            if(st) st.innerText = `Cockpit Recebido (${(msBackend/1000).toFixed(1)}s). Renderizando...`;
+            
+            // Traduz apenas o Cockpit e ConfigGlobais
+            const dadosTraduzidos = window.Tradutor.processarBancoCompleto(response.raw);
+            
+            // Prepara o Cockpit Básico (Sem o Join pesado)
+            const cockpitBruto = dadosTraduzidos.cockpit || [];
+            const cockpitExpresso = cockpitBruto.map(op => {
+              const ticker = String(op.ticker || op.TICKER || op.Ativo || op['Ativo Spot'] || "").trim().toUpperCase();
+              return { 
+                ...op, 
+                STATUS: String(op.status || op.STATUS || "INATIVO").toUpperCase(),
+                TICKER: ticker 
+              };
             });
 
-        const mobileCarouselComponents = computed(() => {
-              if (!isMobile.value) return [];
-              const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
-              const seqIds = config.sequence.map(s => s.id);
-              return currentLayout.value.filter(c => seqIds.includes(c.id));
-            });
+            // Atualiza o Estado Global
+            db.value = { 
+              ...db.value, 
+              cockpit: cockpitExpresso,
+              configGlobal: dadosTraduzidos.configGlobal || {},
+              resumoGerencial: dadosTraduzidos.resumoGerencial || { timestamp: new Date().toLocaleString() }
+            };
 
-        const bottomGridComponents = computed(() => {
-              if (!isMobile.value) return [];
-              const config = window.MOBILE_ORCHESTRATOR_CONFIG || { sequence: [] };
-              const seqIds = config.sequence.map(s => s.id);
-              const idx = currentLayout.value.findIndex(c => seqIds.includes(c.id));
-              if (idx === -1) return [];
-              return currentLayout.value.slice(idx).filter(c => !seqIds.includes(c.id));
-            });
+            // Gera os resumos da Home
+            cuboOlap.value = { ...window.Agregador.processarSumario(db.value) };
 
-        const getMobileLayoutZones = computed(() => {
-            if (window.LayoutConfig && window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG) {
-                return window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG;
-            }
-            return { top: [], carousel: [], bottom: [] };
-        });
+            const tempoFim = performance.now();
+            const msFrontend = tempoFim - tempoBackend;
+            const msTotal = tempoFim - tempoInicio;
 
-        // ====================================================================
-        // 4. CHASSI ORIGINAL: POLLING E SYNC
-        // ====================================================================
-        const timerVisual = ref(300); // 5 minutos padrão
-        const isOrquestrando = ref(false);
-        const isAutoSyncEnabled = ref(false);
-        let pollingInterval = null;
+            // Atualiza a Telemetria
+            tempoCarga.value = `${(msTotal/1000).toFixed(2)}s (GAS: ${(msBackend/1000).toFixed(2)}s | CPU: ${(msFrontend/1000).toFixed(2)}s)`;
 
-        const toggleAutoSync = () => {
-            isAutoSyncEnabled.value = !isAutoSyncEnabled.value;
-            if (isAutoSyncEnabled.value) {
-                timerVisual.value = 300; // Reinicia o relógio aos 5 min sempre que ligar
-            }
-        };
-
-        const formatCountdown = computed(() => {
-            const m = Math.floor(timerVisual.value / 60).toString().padStart(2, '0');
-            const s = (timerVisual.value % 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
-        });
-
-        // O Coração do Smart Polling
-        const iniciarMotorRelogio = () => {
-            if (pollingInterval) clearInterval(pollingInterval);
-            pollingInterval = setInterval(() => {
-                // Só diminui o tempo se estiver LIGADO e NÃO estiver carregando dados
-                if (isAutoSyncEnabled.value && !isLoading.value) {
-                    if (timerVisual.value > 0) {
-                        timerVisual.value--;
-                    } else {
-                        timerVisual.value = 300; // Reseta para 5 minutos
-                        sincronizarDashboard();  // Dispara a atualização real!
-                    }
-                }
-            }, 1000);
-        };
-
-
-
-        const dispararErro = (msg) => {
-            console.error("[APP_CORE] " + msg);
-            errorMessage.value = msg;
-            hasError.value = true;
-            isLoading.value = false;
-        };
-
-        // ====================================================================
-        // 5. MOTOR DE SINCRONIZAÇÃO E PIPELINE ETL (V5)
-        // ====================================================================
-        
-        const handleFailure = (err) => {
-            console.error("Erro na Sincronização:", err);
-            hasError.value = true;
-            errorMessage.value = String(err);
-            isLoading.value = false;
-            status.value = "Falha na Sincronização";
-            const st = document.getElementById('debug-status');
-            if(st) st.innerText = "Erro: " + err;
-        };       
-        
-        const sincronizarDashboard = () => {
-            isLoading.value = true;
-            status.value = "Sincronizando...";
-            // Atualiza Telemetria (Se o painel existir)
-            const st = document.getElementById('debug-status');
-            if(st) st.innerText = "Chamando API...";
+            // LIBERA A TELA PARA O USUÁRIO CLICAR EM TUDO
+            lastSync.value = new Date().toLocaleTimeString();
+            status.value = "Online";
+            isLoading.value = false; 
             
-            google.script.run
-                .withSuccessHandler((response) => {
-                    if (!response || !response.success) return handleFailure("Falha na API");
-                    try {
-                        if(st) st.innerText = "Dados Recebidos. Traduzindo...";
-                        db.value = window.Tradutor.processarBancoCompleto(response.raw);
-                        
-                        // Atualiza Telemetria
-                        if(document.getElementById('debug-trades')) 
-                            document.getElementById('debug-trades').innerText = db.value.cockpit.length;
+            if(st) st.innerText = tempoCarga.value;
 
-                        if(st) st.innerText = "Gerando Cubo OLAP...";
-                        cuboOlap.value = { ...window.Agregador.processarSumario(db.value) };
-                        
-                        if(document.getElementById('debug-cubo'))
-                            document.getElementById('debug-cubo').innerText = cuboOlap.value.meta.status;
+            // 🚚 DISPARA A CARGA PESADA NO FUNDO (Sem o usuário ver)
+            // Espera 500ms para a tela acabar de desenhar a animação de abertura
+            setTimeout(carregarAbasPesadas, 500);
 
-                        lastSync.value = new Date().toLocaleTimeString();
-                        status.value = "Online";
-                        isLoading.value = false;
-                        if(st) st.innerText = "Sistema Nominal";
-                    } catch (err) { handleFailure(err.message); }
-                })
-                .withFailureHandler((err) => handleFailure(err))
-                .getInitialData();
-        };
+          } catch (err) { 
+            console.error("Erro no Processamento Expresso:", err);
+            handleFailure(err.message); 
+          }
+        })
+        .withFailureHandler((err) => handleFailure(err))
+        .getDadosLight(); // <-- CHAMA A NOVA ROTA
+    };
 
-        // ====================================================================
-        // 6. O DISPENSADOR DE PROPS (Dependency Injection V5)
-        // ====================================================================
-        const getComponentProps = (compConfig) => {
-            const baseProps = { 
-                  isMobile: isMobile.value,
-                  isLoading: isLoading.value,
-                  lastSync: lastSync.value,
-                  configGlobais: db.value.configGlobal || {},
-                  ...compConfig.props 
-                };
+    // ====================================================================
+    // 6. O DISPENSADOR DE PROPS (Dependency Injection V5)
+    // ====================================================================
+    const getComponentProps = (compConfig) => {
+      const baseProps = { 
+        isMobile: isMobile.value,
+        isLoading: isLoading.value,
+        lastSync: lastSync.value,
+        configGlobais: db.value.configGlobal || {},
+        ...compConfig.props 
+      };
 
-            const customProps = {
-                  'ticker-tape':      { ativos: db.value.dadosAtivos || [] },
-                  'card-summary':     { statsPreCalculados: cuboOlap.value },
-                  'cockpit-table':    { statsPreCalculados: cuboOlap.value },
-                  
-                  // 🔥 TODOS os Cards Analíticos V5 agora usam apenas o Cubo
-                  'card-distrib-moneyness': { statsPreCalculados: cuboOlap.value },
-                  'card-vencimentos': { statsPreCalculados: cuboOlap.value },
-                  'card-moneyness':   { statsPreCalculados: cuboOlap.value },
-                  'card-resultado':   { statsPreCalculados: cuboOlap.value },
-                  'card-concentracao':{ statsPreCalculados: cuboOlap.value },
-                  
-                  // Componentes de Listagem recebem o cubo para extrair a 'listaAtivas'
-                  'carousel-ativas':  { statsPreCalculados: cuboOlap.value },
-                  
-                  // Telas de Visão Geral e Ferramentas
-                  'consultoria-view': { statsPreCalculados: cuboOlap.value, historico: db.value.historico250d || [] },
-                  'necton-import':    { data: db.value.necton || [] },
-                  'gestao-ativos':    { ativos: db.value.dadosAtivos || [] },
-                  'settings-view':    { configGlobais: db.value.configGlobal || {} },
-                  'scanner-view':     { scannerData: db.value.scannerOportunidades || [] },
-                  'comparativo-view': { db: db.value },
-                  'bancodedados-view':{ db: db.value }
-                };
 
-            return { ...baseProps, ...(customProps[compConfig.component] || {}) };
-        };
 
-        // Opcional para Vue 3 puro: injeta a função globalmente na árvore DOM
-        provide('getComponentProps', getComponentProps);
 
-        // ====================================================================
-        // 7. INICIALIZAÇÃO
-        // ====================================================================
-        onMounted(() => {
-            
-            // Dispara a primeira carga de dados
-            sincronizarDashboard();
 
-            // Liga a engrenagem do relógio
-            iniciarMotorRelogio();            
-            
-            // Ativa o Lucide Icons se disponível
-            if(window.lucide) window.lucide.createIcons();
-        });
 
-        // ====================================================================
-        // 8. EXPOSIÇÃO PARA O TEMPLATE (Binding Final)
-        // ====================================================================
-        
-        // Aliases solicitados pela UI
-        const handleRefresh = () => sincronizarDashboard();
-        const MOBILE_ORCHESTRATOR_CONFIG = computed(() => {
-            if (window.LayoutConfig && window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG) {
-                return window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG;
-            }
-            return { settings: {} }; // 🛡️ Protege o Vue contra o erro "reading 'settings'"
-        });        
 
-        return {
-            // --- ESTADO E DADOS ---
-            db, cuboOlap, isLoading, status, hasError, errorMessage, lastSync,
 
-            // --- NAVEGAÇÃO E LAYOUT ---
-            currentView, navigate, isCollapsed, toggleSidebar, isMobile,
-            menu, currentMenuLabel, currentLayout, dynamicSummaryData,
 
-            // --- COMPONENTES DE INTERFACE (MOBILE/GRID) ---
-            topGridComponents, 
-            mobileCarouselComponents, 
-            bottomGridComponents,
-            getMobileLayoutZones,
 
-            // --- LÓGICA E SINCRONIZAÇÃO ---
-            getComponentProps, 
-            handleRefresh: sincronizarDashboard,
-            timerVisual, 
-            formatCountdown, 
-            isOrquestrando, 
-            isAutoSyncEnabled, 
-            toggleAutoSync,
 
-            // --- CONFIGURAÇÕES TÉCNICAS E PROTEÇÃO ---
-            // 🛡️ PROTEÇÃO: Fallback caso o objeto global não exista (Note: 'sequence' foi removido no novo trecho)
-            //MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {}, sequence: [] }
-            MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {} }
-        };
-    } // Fim do setup()
+
+      const customProps = {
+        'ticker-tape':      { ativos: db.value.dadosAtivos || [] },
+        'card-summary':     { statsPreCalculados: cuboOlap.value },
+        'card-distrib-moneyness': { statsPreCalculados: cuboOlap.value },
+        'card-vencimentos': { statsPreCalculados: cuboOlap.value },
+        'card-moneyness':   { statsPreCalculados: cuboOlap.value },
+        'card-resultado':   { statsPreCalculados: cuboOlap.value },
+        'card-concentracao':{ statsPreCalculados: cuboOlap.value },
+        'carousel-ativas':  { statsPreCalculados: cuboOlap.value },
+        'cockpit-table':    { statsPreCalculados: cuboOlap.value },
+
+        'consultoria-view': { statsPreCalculados: cuboOlap.value, db: db.value },
+        'gestao-ativos':    { ativos: db.value.dadosAtivos || [], db: db.value },
+
+
+        'automation-view':  { logs: db.value.logs || [] },
+        'settings-view':    { configGlobais: db.value.configGlobal || {} },
+        'scanner-view':     { scannerData: db.value.scannerOportunidades || [] },
+        'comparativo-view': { db: db.value },
+        'necton-import':    { data: db.value.necton || [] },
+        'bancodedados-view': { dbRaw: db.value.raw || {}, isLoading: isLoading.value }
+      };
+
+
+
+
+
+
+
+
+      return { ...baseProps, ...(customProps[compConfig.component] || {}) };
+    };
+
+    // Opcional para Vue 3 puro: injeta a função globalmente na árvore DOM
+    provide('getComponentProps', getComponentProps);
+
+    // ====================================================================
+    // 7. INICIALIZAÇÃO
+    // ====================================================================
+    onMounted(() => {
+      
+      // Dispara a primeira carga de dados
+      sincronizarDashboard();
+
+      // Liga a engrenagem do relógio
+      iniciarMotorRelogio();            
+      
+      // Ativa o Lucide Icons se disponível
+      if(window.lucide) window.lucide.createIcons();
+    });
+
+    // ====================================================================
+    // 8. EXPOSIÇÃO PARA O TEMPLATE (Binding Final)
+    // ====================================================================
+    
+    // Aliases solicitados pela UI
+    const handleRefresh = () => sincronizarDashboard();
+    const MOBILE_ORCHESTRATOR_CONFIG = computed(() => {
+      if (window.LayoutConfig && window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG) {
+        return window.LayoutConfig.MOBILE_ORCHESTRATOR_CONFIG;
+      }
+      return { settings: {} }; // 🛡️ Protege o Vue contra o erro "reading 'settings'"
+    });        
+
+    return {
+      // --- ESTADO E DADOS ---
+      db, cuboOlap, isLoading, status, hasError, errorMessage, lastSync, tempoCarga,
+
+      // --- NAVEGAÇÃO E LAYOUT ---
+      currentView, navigate, isCollapsed, toggleSidebar, isMobile,
+      menu, currentMenuLabel, currentLayout, dynamicSummaryData,
+
+      // --- COMPONENTES DE INTERFACE (MOBILE/GRID) ---
+      topGridComponents, 
+      mobileCarouselComponents, 
+      bottomGridComponents,
+      getMobileLayoutZones,
+
+      // --- LÓGICA E SINCRONIZAÇÃO ---
+      getComponentProps, 
+      handleRefresh: sincronizarDashboard,
+      timerVisual, 
+      formatCountdown, 
+      isOrquestrando, 
+      isAutoSyncEnabled, 
+      toggleAutoSync,
+
+      // --- CONFIGURAÇÕES TÉCNICAS E PROTEÇÃO ---
+      // 🛡️ PROTEÇÃO: Fallback caso o objeto global não exista (Note: 'sequence' foi removido no novo trecho)
+      //MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {}, sequence: [] }
+      MOBILE_ORCHESTRATOR_CONFIG: window.MOBILE_ORCHESTRATOR_CONFIG || { settings: {} }
+    };
+  } // Fim do setup()
 }); // Fim do createApp
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ============================================================================
 // REGISTRO DE MICRO FRONT-ENDS E MONTAGEM
@@ -338,19 +492,41 @@ const COMPONENTES_V5 = [
   ['ticker-tape', window.TickerTape],
   ['carousel-ativas', window.CarouselAtivas],
   ['necton-import', window.NectonImport],
+  ['automation-view', window.AutomationView],
+  ['log-console', window.LogConsole],
+  ['comparativo-view', window.ComparativoView], 
+  ['bancodedados-view', window.BancoDeDadosView],
   ['consultoria-view', window.ConsultoriaView],
   ['scanner-view', window.ScannerView],
   ['gestao-ativos', window.GestaoAtivos],
+  ['gestao-ativos-sidebar', window.GestaoAtivosSidebar],
+  ['bancodedados-view', window.BancoDeDadosView],
   ['settings-view', window.SettingsView]
 ];
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 COMPONENTES_V5.forEach(([name, comp]) => {
-    // 🛡️ TRAVA DE SEGURANÇA: Só acopla se o componente existir no escopo global
-    if (comp) {
-        app.component(name, comp);
-    } else {
-        console.error(`[CRÍTICO] Falha ao carregar Micro Front-end: <${name}>. Verifique se o arquivo HTML está incluído no Index.`);
-    }
+  // 🛡️ TRAVA DE SEGURANÇA: Só acopla se o componente existir no escopo global
+  if (comp) {
+    app.component(name, comp);
+  } else {
+    console.error(`[CRÍTICO] Falha ao carregar Micro Front-end: <${name}>. Verifique se o arquivo HTML está incluído no Index.`);
+  }
 });
 
 // Ignição Total

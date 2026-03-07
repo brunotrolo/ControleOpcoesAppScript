@@ -7,10 +7,15 @@
 // 1. READ (Leitura Universal de Todo o Banco)
 // ==========================================
 
-function getInitialData() {
+/**
+ * 🚀 FASE 1: VOO RÁPIDO
+ * Carrega apenas o essencial para a tela acender imediatamente.
+ */
+function getDadosLight() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheets = ss.getSheets();
+    // Puxa apenas as abas vitais para a Home
+    const abasEssenciais = ["COCKPIT", "CONFIG_GLOBAL"]; 
     
     const data = {
       success: true,
@@ -18,16 +23,49 @@ function getInitialData() {
       raw: {}
     };
 
-    // O Backend entrega a matriz bruta EXATA. O Frontend decide onde está o cabeçalho.
-    sheets.forEach(sheet => {
-      const name = sheet.getName();
-      const lastRow = sheet.getLastRow();
-      
-      if (lastRow === 0) {
-        data.raw[name] = []; // Previne erros em abas recém-criadas e vazias
-      } else {
-        // Retorna a aba inteira, da linha 1 até o final.
-        data.raw[name] = sheet.getDataRange().getDisplayValues();
+    abasEssenciais.forEach(nomeAba => {
+      const sheet = getPlanilhaDinamica(ss, nomeAba);
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        // Pega os dados e já protege contra abas vazias
+        data.raw[sheet.getName()] = lastRow === 0 ? [] : sheet.getDataRange().getDisplayValues();
+      }
+    });
+
+    return data;
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * 🚚 FASE 2: CARGA PESADA (Background)
+ * Carrega silenciosamente as toneladas de dados técnicos e históricos.
+ */
+function getAbasPesadas() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    // As abas que esmagam o servidor:
+    const abasPesadas = [
+      "DADOS_ATIVOS", 
+      "Dados_Ativos_Historico_Tendencia", 
+      "DADOS_ATIVOS_HISTORICO250D",
+      "Analise_Preditiva_Heatmap",
+      "Pontuacao_Preditiva_Consolidada",
+      "Analise_Fundamentalista_Ativos",
+      "Analise_Estatistica_Ativos",
+      "CALC_GREEKS", 
+      "NECTON_IMPORT", 
+      "DADOS_DETALHES"
+    ];
+    
+    const data = { success: true, raw: {} };
+
+    abasPesadas.forEach(nomeAba => {
+      const sheet = getPlanilhaDinamica(ss, nomeAba);
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        data.raw[sheet.getName()] = lastRow === 0 ? [] : sheet.getDataRange().getDisplayValues();
       }
     });
 

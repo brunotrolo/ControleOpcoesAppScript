@@ -187,7 +187,115 @@ window.Tradutor = {
         'volume': { key: 'volumeQuantidade', type: 'numero' },
         'fvolume': { key: 'volumeFinanceiro', type: 'moeda' }
       }
+    },
+
+    'DADOS_ATIVOS_HISTORICO_TENDENCIA': {
+      headerRowIndex: 0, // Ignora a 1ª linha (Header)
+      map: {
+        'ticker': { key: 'tickerAtivo', type: 'texto' },
+        'timestamp_sync': { key: 'dataHoraAtualizacao', type: 'data' },
+        'symbol': { key: 'tickerAtivo', type: 'texto' },
+        'name': { key: 'nomeEmpresa', type: 'texto' },
+        'resolution': { key: 'resolucao', type: 'texto' },
+        'time': { key: 'dataPreco', type: 'data' },
+        'open': { key: 'precoAbertura', type: 'moeda' },
+        'high': { key: 'precoMaxima', type: 'moeda' },
+        'low': { key: 'precoMinima', type: 'moeda' },
+        'close': { key: 'spotPrice', type: 'moeda' },
+        'volume': { key: 'volumeQuantidade', type: 'numero' },
+        'fvolume': { key: 'volumeFinanceiro', type: 'moeda' },
+        'MMA5': { key: 'mma5', type: 'moeda' },
+        'MMA20': { key: 'mma20', type: 'moeda' },
+        'MMA200': { key: 'mma200', type: 'moeda' },
+        'IFR14': { key: 'ifr14', type: 'numero' },
+        'Dist_MMA200': { key: 'distMma200', type: 'numero' }, // Mantido como numero para não dividir por 100
+        'Banda_Sup': { key: 'bandaSup', type: 'moeda' },
+        'Banda_Inf': { key: 'bandaInf', type: 'moeda' },
+        'Largura_Banda': { key: 'larguraBanda', type: 'numero' },
+        'Veredito_Tendencia': { key: 'vereditoTendencia', type: 'texto' },
+        'Status_IFR': { key: 'statusIfr', type: 'texto' },
+        'Status_Bollinger': { key: 'statusBollinger', type: 'texto' },
+        'Vol_Relativo': { key: 'volRelativo', type: 'numero' },
+        'Beta_Ibov_60d': { key: 'betaIbov', type: 'numero' },
+        'Correl_Ibov_60d': { key: 'correlIbov', type: 'numero' }
+      }
+    },
+    
+    'ANALISE_PREDITIVA_HEATMAP': {
+      headerRowIndex: 0,
+      map: {
+        'Ticker': { key: 'tickerAtivo', type: 'texto' },
+        'Timestamp_Calculo': { key: 'dataHoraCalculo', type: 'data' },
+        'Prob_Alta': { key: 'probAlta', type: 'percentual' },
+        'Prob_Baixa': { key: 'probBaixa', type: 'percentual' },
+        'Spot_Atual': { key: 'spotPrice', type: 'moeda' },
+        'Spot_Min_45d': { key: 'spotMin', type: 'moeda' },
+        'Spot_Max_45d': { key: 'spotMax', type: 'moeda' },
+        'Score': { key: 'score', type: 'numero' },
+        'Fator_Dominante': { key: 'fatorDominante', type: 'texto' },
+        'Status': { key: 'statusAnalise', type: 'texto' }
+      }
+    },
+
+    'ANALISE_ESTATISTICA_ATIVOS': {
+      headerRowIndex: 0,
+      map: {
+        'Ticker': { key: 'tickerAtivo', type: 'texto' },
+        'HV_250d': { key: 'hv250d', type: 'percentual' },
+        'IV_Atual': { key: 'ivAtual', type: 'percentual' },
+        'IV_Rank_1Y': { key: 'ivRank1y', type: 'percentual' },
+        'HV_IV_Ratio': { key: 'hvIvRatio', type: 'numero' },
+        'Desvio_Padrao_Anualizado': { key: 'desvioPadraoAnual', type: 'percentual' },
+        'Sigma_45d': { key: 'sigma45d', type: 'percentual' },
+        'Prob_1Sigma_Superior': { key: 'prob1SigmaSup', type: 'percentual' },
+        'Prob_1Sigma_Inferior': { key: 'prob1SigmaInf', type: 'percentual' },
+        'Z_Score': { key: 'zScore', type: 'numero' },
+        'Prob_Permanecer_Range': { key: 'probPermanecerRange', type: 'percentual' }
+      }
+    },
+
+    'ANALISE_FUNDAMENTALISTA_ATIVOS': {
+      headerRowIndex: 0,
+      map: {
+        'Ticker': { key: 'tickerAtivo', type: 'texto' },
+        'LPA': { key: 'lpa', type: 'numero' },
+        'VPA': { key: 'vpa', type: 'numero' },
+        'Preço_Justo_Graham': { key: 'graham', type: 'moeda' },
+        'Margem_Seguranca_Graham': { key: 'margemSeguranca', type: 'percentual' },
+        'P_L': { key: 'pl', type: 'numero' },
+        'P_VP': { key: 'pvp', type: 'numero' },
+        'Dividend_Yield': { key: 'dy', type: 'percentual' },
+        'ROE': { key: 'roe', type: 'percentual' },
+        'Divida_Liquida_EBITDA': { key: 'dividaLiqEbitda', type: 'numero' },
+        'Score_Fundamentalista': { key: 'scoreFundamentalista', type: 'numero' }
+      }
+    },
+
+    'PONTUACAO_PREDITIVA_CONSOLIDADA': {
+      headerRowIndex: 0,
+      map: {
+        'Ticker': { key: 'tickerAtivo', type: 'texto' },
+        'Score_Consolidado': { key: 'score', type: 'numero' },
+        'Probabilidade_Alta': { key: 'probAlta', type: 'percentual' },
+        'Probabilidade_Baixa': { key: 'probBaixa', type: 'percentual' },
+        'Spot_Min_Proj': { key: 'spotMin', type: 'moeda' },
+        'Spot_Max_Proj': { key: 'spotMax', type: 'moeda' },
+        'Fator_Dominante': { key: 'fatorDominante', type: 'texto' },
+        'Status_Operacional': { key: 'statusAnalise', type: 'texto' }
+      }
+    },
+
+    'LOGS': {
+      headerRowIndex: 0,
+      map: {
+        'Timestamp': { key: 'timestampLog', type: 'data' },
+        'Servico': { key: 'servico', type: 'texto' },
+        'Status': { key: 'status', type: 'texto' },
+        'Mensagem_Resumo': { key: 'mensagemResumo', type: 'texto' },
+        'Contexto_Detalhado': { key: 'contextoDetalhado', type: 'texto' }
+      }
     }
+
   },
 
   /**
@@ -207,6 +315,20 @@ window.Tradutor = {
         return chave ? rawPayload[chave] : [];
     };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return {
       cockpit: this.processar(getAba('COCKPIT'), 'COCKPIT'),
       configGlobal: this.processar(getAba('CONFIG_GLOBAL'), 'CONFIG_GLOBAL'),
@@ -215,9 +337,26 @@ window.Tradutor = {
       dadosDetalhes: this.processar(getAba('DADOS_DETALHES'), 'DADOS_DETALHES'),
       calcGreeks: this.processar(getAba('CALC_GREEKS'), 'CALC_GREEKS'),
       historico250d: this.processar(getAba('DADOS_ATIVOS_HISTORICO250D'), 'DADOS_ATIVOS_HISTORICO250D'),
+      dadosTendencia: this.processar(getAba('Dados_Ativos_Historico_Tendencia'), 'DADOS_ATIVOS_HISTORICO_TENDENCIA'),
+      
+      analiseHeatmap: this.processar(getAba('Analise_Preditiva_Heatmap'), 'ANALISE_PREDITIVA_HEATMAP'),
+      analisePreditiva: this.processar(getAba('Pontuacao_Preditiva_Consolidada'), 'PONTUACAO_PREDITIVA_CONSOLIDADA'),
+      analiseFundamentalista: this.processar(getAba('Analise_Fundamentalista_Ativos'), 'ANALISE_FUNDAMENTALISTA_ATIVOS'),
+      analiseEstatistica: this.processar(getAba('Analise_Estatistica_Ativos'), 'ANALISE_ESTATISTICA_ATIVOS'),
+
+      
       resumoGerencial: { timestamp: new Date().toLocaleString('pt-BR') }
     };
   },
+
+
+
+
+
+
+
+
+
 
   /**
    * 🚀 MOTOR PRINCIPAL: Processa qualquer matriz bruta do Excel
