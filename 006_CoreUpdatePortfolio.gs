@@ -1,78 +1,83 @@
 /**
- * @fileoverview CoreUpdatePortfolio - v3.3 (Audit Trail Edition)
- * AÇÃO: Sincronia de ativos com Log de Contexto Profundo e marcadores de território.
+ * @fileoverview CoreUpdatePortfolio - v4.0 (DUD Edition)
+ * AÇÃO: Sincronia de ativos com Log de Contexto Profundo e Mapeamento Dinâmico.
+ * PADRÃO: Respeita o Dicionário Universal de Dados (v5.0).
  */
 
 const PortfolioUpdater = {
-  _serviceName: "PortfolioUpdater_v3.3",
+  _serviceName: "PortfolioUpdater_v4.0",
 
   /**
-   * Processa o portfólio com auditoria completa em todas as fases.
+   * Processa o portfólio com auditoria e mapeamento dinâmico de colunas.
    */
   syncPortfolioData() {
     const inicio = Date.now();
-    const metadadosExecucao = {
-      planilha: SYS_CONFIG.SHEETS.TRIGGER,
-      coluna_entrada: SYS_CONFIG.COLUMNS.TRIGGER_INPUT,
-      coluna_saida: SYS_CONFIG.COLUMNS.OUTPUT_START,
-      timestamp_inicio: new Date().toISOString()
-    };
-
-    // MARCADOR DE TERRITÓRIO: INÍCIO
-    SysLogger.log(this._serviceName, "START", ">>> INICIANDO CICLO DE ATUALIZAÇÃO DO PORTFÓLIO <<<", JSON.stringify(metadadosExecucao));
-
+    
     try {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const aba = ss.getSheetByName(SYS_CONFIG.SHEETS.TRIGGER);
-      if (!aba) throw new Error(`Aba não encontrada: ${SYS_CONFIG.SHEETS.TRIGGER}`);
+      const aba = ss.getSheetByName(SYS_CONFIG.SHEETS.IMPORT);
+      if (!aba) throw new Error(`Aba não encontrada: ${SYS_CONFIG.SHEETS.IMPORT}`);
 
       const maxRows = aba.getLastRow();
       if (maxRows < 2) {
-        SysLogger.log(this._serviceName, "AVISO", "Processamento abortado: Aba vazia ou apenas cabeçalho.", "Linhas encontradas: " + maxRows);
+        SysLogger.log(this._serviceName, "AVISO", "Aba vazia ou apenas cabeçalho.", "Linhas: " + maxRows);
         return;
       }
 
-      const dataFull = aba.getRange(2, 1, maxRows - 1, SYS_CONFIG.COLUMNS.OUTPUT_END).getValues();
+      // 1. SCAN DINÂMICO DE CABEÇALHOS (Mapeia rótulos para índices)
+      const headers = aba.getRange(1, 1, 1, aba.getLastColumn()).getValues()[0];
+      const col = {};
+      headers.forEach((label, index) => {
+        if (label) col[label.trim()] = index + 1;
+      });
+
+      // Validação de colunas obrigatórias via DUD
+      const req = ["OPTION_TICKER", "ID_TRADE", "TICKER", "STATUS_OP"];
+      req.forEach(key => {
+        if (!col[key]) throw new Error(`Coluna obrigatória '${key}' não encontrada na aba ${SYS_CONFIG.SHEETS.IMPORT}`);
+      });
+
+      const dataFull = aba.getRange(2, 1, maxRows - 1, aba.getLastColumn()).getValues();
       const linhasParaProcessar = [];
       const tickersSucesso = [];
       let contagemErro = 0;
 
-      // 1. FASE DE MAPEAMENTO
+      // 2. FASE DE MAPEAMENTO (Usa os índices descobertos no Scan)
       for (let i = 0; i < dataFull.length; i++) {
         const linhaPlanilha = i + 2; 
         const rowData = dataFull[i];
-        const ticker = String(rowData[SYS_CONFIG.COLUMNS.TRIGGER_INPUT - 1]).trim();
-        const idTrade = rowData[SYS_CONFIG.COLUMNS.ID_FORMULA - 1];        
-        const jaProcessado = rowData[SYS_CONFIG.COLUMNS.OUTPUT_START - 1]; 
+        
+        const optionTicker = String(rowData[col.OPTION_TICKER - 1]).trim();
+        const idTrade      = rowData[col.ID_TRADE - 1];         
+        const jaEnriquecido = rowData[col.TICKER - 1]; // Se a coluna TICKER (Ação) estiver vazia, precisa processar
 
-        if (ticker && idTrade && !jaProcessado) {
-          linhasParaProcessar.push({ linha: linhaPlanilha, ticker: ticker });
+        if (optionTicker && idTrade && !jaEnriquecido) {
+          linhasParaProcessar.push({ linha: linhaPlanilha, optionTicker: optionTicker });
         }
       }
 
-      SysLogger.log(this._serviceName, "INFO", `Fase de Mapeamento: ${linhasParaProcessar.length} ativos pendentes encontrados.`, "Total linhas analisadas: " + maxRows);
+      SysLogger.log(this._serviceName, "INFO", `Mapeamento: ${linhasParaProcessar.length} ativos pendentes.`, `Total analisado: ${maxRows}`);
 
       if (linhasParaProcessar.length === 0) {
-        SysLogger.log(this._serviceName, "FINISH", ">>> CICLO ENCERRADO: Nada para processar. <<<");
+        SysLogger.log(this._serviceName, "FINISH", ">>> CICLO ENCERRADO: Nada para enriquecer. <<<");
         SysLogger.flush();
         return;
       }
 
-      // 2. FASE DE EXECUÇÃO (API + ESCRITA)
+      // 3. FASE DE EXECUÇÃO (API + ESCRITA)
       linhasParaProcessar.forEach((item) => {
-        const dadosNovos = this._fetchOptionData(item.ticker);
+        const dadosNovos = this._fetchOptionData(item.optionTicker);
         
         if (dadosNovos) {
-          aba.getRange(item.linha, SYS_CONFIG.COLUMNS.OUTPUT_START, 1, 5).setValues([dadosNovos]);
-          tickersSucesso.push(item.ticker);
+          // Grava em bloco: TICKER, EXPIRY, STRIKE, CATEGORY, STATUS_OP
+          aba.getRange(item.linha, col.TICKER, 1, 5).setValues([dadosNovos]);
+          tickersSucesso.push(item.optionTicker);
           
-          // Log detalhado com o payload que foi para a planilha
-          SysLogger.log(this._serviceName, "SUCESSO", `Linha ${item.linha} atualizada: ${item.ticker}`, "Payload: " + JSON.stringify(dadosNovos));
-
+          SysLogger.log(this._serviceName, "SUCESSO", `Linha ${item.linha}: ${item.optionTicker} enriquecida.`, JSON.stringify(dadosNovos));
         } else {
-          aba.getRange(item.linha, SYS_CONFIG.COLUMNS.OUTPUT_START, 1, 1).setValue("ERRO_API");
+          aba.getRange(item.linha, col.TICKER, 1, 1).setValue("ERRO_API");
           contagemErro++;
-          SysLogger.log(this._serviceName, "ERRO", `Falha na atualização da linha ${item.linha} (${item.ticker})`, "API retornou null ou erro de parser.");
+          SysLogger.log(this._serviceName, "ERRO", `Falha na API para ${item.optionTicker}`, "Retornou null");
         }
         
         if (linhasParaProcessar.length > 5) Utilities.sleep(600); 
@@ -80,41 +85,35 @@ const PortfolioUpdater = {
 
       // MARCADOR DE TERRITÓRIO: FINALIZAÇÃO
       const duracao = ((Date.now() - inicio) / 1000).toFixed(1);
-      const resumoFinal = {
-        total_pendentes: linhasParaProcessar.length,
+      SysLogger.log(this._serviceName, "FINISH", `>>> CICLO FINALIZADO EM ${duracao}s <<<`, JSON.stringify({
+        total: linhasParaProcessar.length,
         sucesso: tickersSucesso.length,
-        erros: contagemErro,
-        duracao_segundos: duracao,
-        lista_ativos: tickersSucesso
-      };
-
-      SysLogger.log(this._serviceName, "FINISH", `>>> CICLO FINALIZADO COM SUCESSO EM ${duracao}s <<<`, JSON.stringify(resumoFinal));
+        erros: contagemErro
+      }));
       SysLogger.flush(); 
-      
+
     } catch (e) {
-      // Passando String(e.message) para proteger a coluna de Timestamp
-      SysLogger.log(this._serviceName, "CRITICO", "FALHA CATASTRÓFICA NO MOTOR 006", String(e.message));
+      SysLogger.log(this._serviceName, "CRITICO", "FALHA NO MOTOR 006", String(e.message));
       SysLogger.flush();
     }
   },
 
   /**
-   * Helper privado com log de debug do payload bruto.
+   * Busca dados na API e formata para o bloco de saída.
    */
-  _fetchOptionData(ticker) {
+  _fetchOptionData(optionTicker) {
     try {
-      const data = OplabService.getOptionDetails(ticker);
+      const data = OplabService.getOptionDetails(optionTicker);
       if (!data) return null;
 
-      const payload = [
-        String(data.parent_symbol || data.symbol || data.underlying).toUpperCase(),
+      // Payload ordenado conforme as colunas da planilha: TICKER, EXPIRY, STRIKE, CATEGORY, STATUS_OP
+      return [
+        String(data.parent_symbol || data.symbol).toUpperCase(),
         DataUtils.formatDateBR(data.due_date || data.expiration),
         data.strike ? Number(data.strike) : "N/A",
         String(data.category || data.type || "N/A").toUpperCase(),
-        "ATIVO"
+        "ATIVO" // Novo Status Operacional
       ];
-
-      return payload;
     } catch (e) {
       return null;
     }

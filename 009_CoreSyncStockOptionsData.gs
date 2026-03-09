@@ -1,12 +1,12 @@
 /**
- * @fileoverview CoreSyncStockOptionsData - v4.0 (Merge Logic & Gold Standard Audit)
- * AÇÃO: Sincroniza detalhes de opções ATIVAS preservando colunas manuais.
- * MELHORIA: Lógica de Merge não apaga dados que não vêm da API (ex: anotações).
- * PADRÃO: Modo Silencioso e Contexto Serializado.
+ * @fileoverview CoreSyncStockOptionsData - v5.5 (Absolute Mapping & Timezone Fix)
+ * AÇÃO: Sincroniza detalhes de opções com mapeamento rígido e formato BR.
+ * CORREÇÃO: Impede que o 'updated_at' da API sobrescreva o timestamp BR do sistema.
+ * PADRÃO: Dicionário Universal de Dados (v5.0).
  */
 
 const OptionDetailsSync = {
-  _serviceName: "OptionDetailsSync_v4.0",
+  _serviceName: "OptionDetailsSync_v5.5",
 
   run() {
     const inicio = Date.now();
@@ -14,143 +14,158 @@ const OptionDetailsSync = {
     hoje.setHours(0, 0, 0, 0);
 
     const cacheAPI = {};
-    const stats = { api: 0, cache: 0, vencidos: 0, invalidos: 0, atualizados: 0, novos: 0 };
-    const metadadosExecucao = {
-      aba_gatilho: SYS_CONFIG.SHEETS.TRIGGER,
-      aba_destino: SYS_CONFIG.SHEETS.DETAILS,
-      timestamp_inicio: new Date().toISOString()
-    };
+    const stats = { lidos: 0, processados: 0, skip_status: 0, api_calls: 0, erros: 0 };
+    
+    // FORMATO DE DATA COMBINADO: DD/MM/YYYY HH:MM:SS
+    const dataBR = DataUtils.formatDateBR(new Date());
+    const horaBR = new Date().toLocaleTimeString('pt-BR');
+    const timestampSistema = `${dataBR} ${horaBR}`;
 
-    // MARCADOR DE TERRITÓRIO: INÍCIO
-    SysLogger.log(this._serviceName, "START", ">>> INICIANDO SINCRONIZAÇÃO DE DETALHES (OPÇÕES) <<<", JSON.stringify(metadadosExecucao));
+    SysLogger.log(this._serviceName, "START", ">>> INICIANDO SINCRONIZAÇÃO (FIX DATA/HORA) <<<", "");
 
     try {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const abaGatilho = ss.getSheetByName(SYS_CONFIG.SHEETS.TRIGGER);
+      const abaImport = ss.getSheetByName(SYS_CONFIG.SHEETS.IMPORT);
       const abaDetalhes = ss.getSheetByName(SYS_CONFIG.SHEETS.DETAILS);
       
-      if (!abaGatilho || !abaDetalhes) {
-        throw new Error(`Abas ausentes: Verifique ${SYS_CONFIG.SHEETS.TRIGGER} e ${SYS_CONFIG.SHEETS.DETAILS}`);
-      }
+      if (!abaImport || !abaDetalhes) throw new Error("Abas não encontradas.");
       
-      // --- 1. SCAN DINÂMICO ---
-      const headersGatilho = abaGatilho.getRange(1, 1, 1, abaGatilho.getLastColumn()).getValues()[0];
-      const colMapG = {};
-      headersGatilho.forEach((h, i) => { if(h) colMapG[String(h).trim()] = i; });
-
-      const idxID = colMapG["ID_Trade_Unico"];
-      const idxEstrutura = colMapG["ID_Estrutura"];
-      const idxAtivo = colMapG["Ativo"] !== undefined ? colMapG["Ativo"] : 0;
-      const idxVencimento = colMapG["Vencimento"];
-      const idxStatus = colMapG["Status Operação"];
-
-      const cabecalhosDestino = abaDetalhes.getRange(1, 1, 1, abaDetalhes.getLastColumn()).getValues()[0];
-      const headerMapD = {};
-      cabecalhosDestino.forEach((h, i) => { if(h) headerMapD[String(h).trim()] = i; });
-
-      // Mapa de cache para evitar múltiplas leituras da mesma linha de destino
-      const idToRowMap = {};
-      if (abaDetalhes.getLastRow() > 1) {
-        const ids = abaDetalhes.getRange(2, 1, abaDetalhes.getLastRow() - 1, 1).getValues();
-        ids.forEach((l, i) => { if (l[0]) idToRowMap[String(l[0]).trim()] = i + 2; });
-      }
-
-      const valoresGatilho = abaGatilho.getDataRange().getValues();
+      const colI = this._getColMap(abaImport);
+      const colD = this._getColMap(abaDetalhes);
+      const idToRowMap = this._getIDRowMap(abaDetalhes, colD.ID_TRADE);
       
-      const dataHoje = DataUtils.formatDateBR(new Date());
-      const horaHoje = new Date().toLocaleTimeString('pt-BR');
-      const timestampAtual = `${dataHoje} ${horaHoje}`;
+      const valoresImport = abaImport.getDataRange().getValues();
 
-      // --- 2. PROCESSAMENTO E MERGE ---
-      for (let i = 1; i < valoresGatilho.length; i++) {
-        const linhaAtu = valoresGatilho[i];
-        const status = String(linhaAtu[idxStatus] || "").trim().toUpperCase();
-        const idTrade = String(linhaAtu[idxID] || "").trim();
-        const ticker = String(linhaAtu[idxAtivo] || "").trim();
+      // 1. MAPEAMENTO RÍGIDO (API Key -> Spreadsheet Label)
+      const fieldMapper = {
+        "symbol": "OPTION_TICKER",
+        "parent_symbol": "TICKER",
+        "name": "CONTRACT_DESC",
+        "close": "CLOSE",
+        "volume": "VOLUME_QTY",
+        "financial_volume": "VOLUME_FIN",
+        "trades": "TRADES_COUNT",
+        "bid": "BID",
+        "ask": "ASK",
+        "due_date": "EXPIRY",
+        "maturity_type": "MATURITY_TYPE",
+        "contract_size": "LOT_SIZE",
+        "exchange_id": "EXCHANGE_ID",
+        "created_at": "CREATED_AT",
+        "updated_at": "EDITED_AT", // Aqui redirecionamos o ISO da API para outra coluna
+        "variation": "VARIATION",
+        "spot_price": "SPOT",
+        "isin": "ISIN",
+        "security_category": "SECURITY_CAT",
+        "market_maker": "MARKET_MAKER",
+        "block_date": "BLOCK_DATE",
+        "days_to_maturity": "DTE_CALENDAR",
+        "cnpj": "CNPJ",
+        "bid_volume": "BID_VOLUME",
+        "ask_volume": "ASK_VOLUME",
+        "time": "EXCH_TIMESTAMP",
+        "type": "OPTION_TYPE",
+        "last_trade_at": "LAST_TRADE_AT",
+        "strike_eod": "STRIKE_EOD",
+        "quotationForm": "QUOTATION_FORM",
+        "lastUpdatedDividendsAt": "DIVIDEND_UPDATED_AT"
+      };
 
-        // Filtro Primário (Mais rápido)
-        if (status !== "ATIVO") continue;
-        if (!idTrade || idTrade.length < 10 || !isNaN(idTrade)) { stats.invalidos++; continue; }
+      for (let i = 1; i < valoresImport.length; i++) {
+        const linhaImport = valoresImport[i];
+        const idTrade = String(linhaImport[colI.ID_TRADE] || "").trim();
+        const optTicker = String(linhaImport[colI.OPTION_TICKER] || "").trim();
+        const status = String(linhaImport[colI.STATUS_OP] || "").trim().toUpperCase();
 
-        // Filtro de Vencimento
-        const dataVenc = this._parseDate(linhaAtu[idxVencimento]);
-        if (dataVenc && dataVenc < hoje) { stats.vencidos++; continue; }
+        if (!idTrade || idTrade.length < 5) continue;
+        stats.lidos++;
 
-        // Chamada de API / Cache
-        let dadosAPI = cacheAPI[ticker] || null;
+        if (status !== "ATIVO") { stats.skip_status++; continue; }
+
+        let dadosAPI = cacheAPI[optTicker] || null;
         if (!dadosAPI) {
-          dadosAPI = OplabService.getOptionDetails(ticker);
+          dadosAPI = OplabService.getOptionDetails(optTicker);
           if (dadosAPI) { 
-            cacheAPI[ticker] = dadosAPI; 
-            stats.api++; 
-            Utilities.sleep(1300); // Rate Limit da API
+            cacheAPI[optTicker] = dadosAPI; 
+            stats.api_calls++; 
+            Utilities.sleep(1100); 
           }
-        } else {
-          stats.cache++;
         }
 
         if (dadosAPI) {
           const rowNum = idToRowMap[idTrade];
-          let linhaParaGravar;
+          let linhaFinal = rowNum ? abaDetalhes.getRange(rowNum, 1, 1, abaDetalhes.getLastColumn()).getValues()[0] : new Array(abaDetalhes.getLastColumn()).fill("");
 
-          // --- LÓGICA DE MERGE (Preservação de Colunas Manuais) ---
-          if (rowNum) {
-            // Se já existe, lê a linha atual para não apagar colunas extras (Ex: Anotações)
-            linhaParaGravar = abaDetalhes.getRange(rowNum, 1, 1, cabecalhosDestino.length).getValues()[0];
-            stats.atualizados++;
-          } else {
-            // Se for novo, cria array vazio
-            linhaParaGravar = new Array(cabecalhosDestino.length).fill("");
-            stats.novos++;
-          }
+          // 2. LOGICA DE EXTRAÇÃO COM PRIORIDADE DE SISTEMA
+          for (const label in colD) {
+            const idx = colD[label];
+            let valorFinal;
 
-          // Injeta os dados da API apenas nas colunas mapeadas
-          const snapshot = JSON.parse(JSON.stringify(dadosAPI));
-          snapshot['ID_Trade_Unico'] = idTrade;
-          snapshot['ID_Estrutura'] = String(linhaAtu[idxEstrutura] || "").trim();
-          snapshot['Timestamp_Atualizacao'] = timestampAtual;
-          
-          if (snapshot['due_date']) snapshot['due_date'] = DataUtils.formatDateBR(snapshot['due_date']);
+            // A. Campos Controlados pelo Script (Prioridade Máxima)
+            if (label === "UPDATED_AT") {
+              valorFinal = timestampSistema; // SEMPRE BR
+            } else if (label === "ID_TRADE") {
+              valorFinal = idTrade;
+            } else if (label === "ID_STRATEGY") {
+              valorFinal = String(linhaImport[colI.ID_STRATEGY] || "").trim();
+            } else {
+              // B. Campos da API (via Mapper)
+              const apiKey = Object.keys(fieldMapper).find(key => fieldMapper[key] === label);
+              if (apiKey && dadosAPI[apiKey] !== undefined) {
+                valorFinal = dadosAPI[apiKey];
+              } else if (dadosAPI[label.toLowerCase()] !== undefined) {
+                // C. Fallback para nomes idênticos em minúsculo (strike, bid, ask)
+                valorFinal = dadosAPI[label.toLowerCase()];
+              }
+            }
 
-          for (const key in headerMapD) {
-            const colIdx = headerMapD[key];
-            if (snapshot[key] !== undefined) {
-              linhaParaGravar[colIdx] = typeof snapshot[key] === 'object' ? JSON.stringify(snapshot[key]) : snapshot[key];
+            // Tratamento de tipos
+            if (valorFinal !== undefined && valorFinal !== null) {
+              if (label === "EXPIRY" && valorFinal.includes("-")) {
+                linhaFinal[idx] = DataUtils.formatDateBR(valorFinal);
+              } else {
+                linhaFinal[idx] = typeof valorFinal === 'object' ? JSON.stringify(valorFinal) : valorFinal;
+              }
             }
           }
 
-          // Gravação
           if (rowNum) {
-            abaDetalhes.getRange(rowNum, 1, 1, cabecalhosDestino.length).setValues([linhaParaGravar]);
+            abaDetalhes.getRange(rowNum, 1, 1, linhaFinal.length).setValues([linhaFinal]);
           } else {
-            abaDetalhes.appendRow(linhaParaGravar);
+            abaDetalhes.appendRow(linhaFinal);
             idToRowMap[idTrade] = abaDetalhes.getLastRow();
           }
-          
-          SysLogger.log(this._serviceName, "SUCESSO", `Opção ${ticker} processada.`, `ID_Trade: ${idTrade} | Tipo: ${rowNum ? 'Atualização' : 'Novo'}`);
+          stats.processados++;
         }
       }
 
-      // MARCADOR DE TERRITÓRIO: FINALIZAÇÃO
-      const duracao = ((Date.now() - inicio) / 1000).toFixed(1);
-      stats.duracao_segundos = duracao;
-
-      SysLogger.log(this._serviceName, "FINISH", `>>> CICLO FINALIZADO EM ${duracao}s <<<`, JSON.stringify(stats));
+      SysLogger.log(this._serviceName, "FINISH", ">>> SINCRONIA CONCLUÍDA <<<", JSON.stringify({
+        tempo: ((Date.now() - inicio) / 1000).toFixed(1) + "s",
+        total_lido: stats.lidos,
+        atualizados: stats.processados,
+        status_ignorado: stats.skip_status
+      }));
       SysLogger.flush();
 
     } catch (e) {
-      SysLogger.log(this._serviceName, "CRITICO", "Falha fatal no motor de Detalhes de Opções", String(e.message));
+      SysLogger.log(this._serviceName, "CRITICO", "Falha fatal no motor 009", String(e.message));
       SysLogger.flush();
     }
   },
 
-  _parseDate(raw) {
-    if (raw instanceof Date) return raw;
-    if (!raw) return null;
-    const s = String(raw);
-    const partes = s.split('/');
-    if (partes.length === 3) return new Date(partes[2], partes[1] - 1, partes[0]);
-    return new Date(s);
+  _getColMap(aba) {
+    const headers = aba.getRange(1, 1, 1, aba.getLastColumn()).getValues()[0];
+    const map = {};
+    headers.forEach((h, i) => { if(h) map[String(h).trim()] = i; });
+    return map;
+  },
+
+  _getIDRowMap(aba, colIdx) {
+    const map = {};
+    if (aba.getLastRow() < 2) return map;
+    const ids = aba.getRange(2, colIdx + 1, aba.getLastRow() - 1, 1).getValues();
+    ids.forEach((l, i) => { if (l[0]) map[String(l[0]).trim()] = i + 2; });
+    return map;
   }
 };
 

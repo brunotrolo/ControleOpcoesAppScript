@@ -1,8 +1,8 @@
 /**
- * @fileoverview CoreCalcGreeks - v4.0 (Nativo - Black-Scholes Engine)
+ * @fileoverview CoreCalcGreeks - v5.0 (Native Math Engine & Zero Holes)
  * AÇÃO: Calcula Gregas e IV internamente via Black-Scholes (Newton-Raphson).
- * CORREÇÃO: Mapeado Código da Opção na coluna Ativo.
- * PADRÃO: Modo Silencioso e Contexto Serializado.
+ * CORREÇÃO: Mapeamento absoluto ao DUD v5.0 e Logs Diagnósticos.
+ * PADRÃO: Modo Silencioso e Isolamento de Case-Sensitivity.
  */
 
 const OptionMath = {
@@ -69,127 +69,146 @@ const OptionMath = {
 };
 
 const GreeksCalculator = {
-  _serviceName: "GreeksCalculator_v4.0",
+  _serviceName: "GreeksCalculator_v5.0",
 
   run() {
     const inicio = Date.now();
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    const dataHoje = DataUtils.formatDateBR(new Date());
-    const horaHoje = new Date().toLocaleTimeString('pt-BR');
-    const timestampAtual = `${dataHoje} ${horaHoje}`;
+    // FORMATO DE DATA EXIGIDO: DD/MM/YYYY HH:MM:SS
+    const dataBR = DataUtils.formatDateBR(new Date());
+    const horaBR = new Date().toLocaleTimeString('pt-BR');
+    const timestampAtual = `${dataBR} ${horaBR}`;
 
     const cacheCalculos = {};
-    const stats = { total: 0, calculos: 0, cache: 0, erros: 0 };
+    const stats = { lidos: 0, ativos: 0, gravados: 0, skip_status: 0, erros: 0 };
+    const statusEncontrados = {};
 
-    SysLogger.log(this._serviceName, "START", ">>> INICIANDO CÁLCULO NATIVO (BLACK-SCHOLES) <<<", "");
+    SysLogger.log(this._serviceName, "START", ">>> INICIANDO CÁLCULO NATIVO (BS) <<<", "");
 
     try {
-      const abaGatilho = ss.getSheetByName(SYS_CONFIG.SHEETS.TRIGGER);
-      const abaCalc = ss.getSheetByName("Calc_Greeks");
+      const abaImport = ss.getSheetByName(SYS_CONFIG.SHEETS.IMPORT);
+      const abaCalc = ss.getSheetByName(SYS_CONFIG.SHEETS.GREEKS_CALC);
       const abaDetails = ss.getSheetByName(SYS_CONFIG.SHEETS.DETAILS);
       const abaAssets = ss.getSheetByName(SYS_CONFIG.SHEETS.ASSETS);
 
-      if (!abaCalc) throw new Error("Aba 'Calc_Greeks' não encontrada.");
+      if (!abaCalc || !abaImport) throw new Error("Aba IMPORT ou CALC_GREEKS não encontrada.");
 
-      const detailsMap = this._getMap(abaDetails, "ID_Trade_Unico");
-      const assetsMap = this._getMap(abaAssets, "Ticker");
-      const idToRowMap = this._getRowMap(abaCalc, "ID_Trade_Unico");
+      const colI = this._getColMap(abaImport);
+      const colC = this._getColMap(abaCalc);
+      
+      const detailsMap = this._getDynamicMap(abaDetails, "ID_TRADE");
+      const assetsMap = this._getDynamicMap(abaAssets, "TICKER");
+      
+      const idToRowMap = {};
+      if (abaCalc.getLastRow() > 1) {
+        const ids = abaCalc.getRange(2, colC.ID_TRADE + 1, abaCalc.getLastRow() - 1, 1).getValues();
+        ids.forEach((l, i) => { if (l[0]) idToRowMap[String(l[0]).trim()] = i + 2; });
+      }
 
-      const nectonData = abaGatilho.getDataRange().getValues();
-      const headersN = nectonData[0];
-      const idxID = headersN.indexOf("ID_Trade_Unico");
-      const idxStatus = headersN.indexOf("Status Operação");
+      const valoresImport = abaImport.getDataRange().getValues();
+      const irate = 0.1075; // TODO: Integrar com SYS_CONFIG no futuro
 
-      const irate = 0.1075; // Selic
-
-      for (let i = 1; i < nectonData.length; i++) {
-        const idTrade = String(nectonData[i][idxID] || "").trim();
-        const status = String(nectonData[i][idxStatus] || "").trim().toUpperCase();
+      for (let i = 1; i < valoresImport.length; i++) {
+        const linha = valoresImport[i];
+        const idTrade = String(linha[colI.ID_TRADE] || "").trim();
+        const optTicker = String(linha[colI.OPTION_TICKER] || "").trim();
+        const statusRaw = String(linha[colI.STATUS_OP] || "").trim();
+        const statusUpper = statusRaw.toUpperCase();
         
-        if (status !== "ATIVO" || idTrade.length < 10) continue;
-        stats.total++;
+        if (!idTrade || idTrade.length < 5) continue;
+        stats.lidos++;
+        statusEncontrados[statusUpper] = (statusEncontrados[statusUpper] || 0) + 1;
+
+        if (statusUpper !== "ATIVO") { 
+          stats.skip_status++; 
+          continue; 
+        }
+        stats.ativos++;
 
         const detail = detailsMap[idTrade];
-        const asset = detail ? assetsMap[detail.parent_symbol] : null;
+        const asset = detail ? assetsMap[detail.TICKER] : null;
 
         if (!detail || !asset) {
           stats.erros++;
-          SysLogger.log(this._serviceName, "AVISO", `Insumos ausentes para ID: ${idTrade}`, `Procure por '${detail?.parent_symbol}' na aba de Ativos.`);
+          SysLogger.log(this._serviceName, "AVISO", `Insumos ausentes para ID: ${idTrade}`, `Falta DADOS_ATIVOS ou DADOS_DETALHES`);
           continue;
         }
 
-        const tickerOpcao = detail.symbol;
-        let resBS;
+        let resBS = cacheCalculos[optTicker] || null;
 
-        if (cacheCalculos[tickerOpcao]) {
-          resBS = cacheCalculos[tickerOpcao];
-          stats.cache++;
-        } else {
-          const S = Number(asset.close);
-          const K = Number(detail.strike);
-          const T_dias = Number(detail.days_to_maturity);
+        if (!resBS) {
+          const S = Number(asset.SPOT);
+          const K = Number(detail.STRIKE);
+          const T_dias = Number(detail.DTE_CALENDAR);
           const T_anos = T_dias / OptionMath.DIAS_ANO;
-          const flag = detail.type.toLowerCase() === 'call' ? 'c' : 'p';
-          const precoMercado = Number(detail.close);
+          const flag = detail.OPTION_TYPE.toLowerCase() === 'call' ? 'c' : 'p';
+          const precoMercado = Number(detail.CLOSE);
           
-          // Cálculo da IV Estimada (Onde a mágica acontece)
           const iv = OptionMath.estimateIV(S, K, T_anos, irate, precoMercado, flag);
-          
-          // Cálculo das Gregas
           resBS = OptionMath.calculate(S, K, T_anos, irate, iv, flag);
           resBS.volatility = iv;
-          resBS.moneyness_code = OptionMath.getMoneynessCode(S, K, detail.type);
+          resBS.moneyness_code = OptionMath.getMoneynessCode(S, K, detail.OPTION_TYPE);
           resBS.moneyness_val = S / K;
           
-          cacheCalculos[tickerOpcao] = resBS;
-          stats.calculos++;
+          cacheCalculos[optTicker] = resBS;
 
-          // LOG DE AUDITORIA MATEMÁTICA (Relevante para conferência)
-          const auditInfo = {
-            spot: S,
-            strike: K,
-            dtm: T_dias,
-            iv_calc: (iv * 100).toFixed(2) + "%",
-            price_mkt: precoMercado,
-            price_teo: resBS.price.toFixed(2),
-            delta: resBS.delta.toFixed(4)
-          };
-          SysLogger.log(this._serviceName, "INFO", `Cálculo BS p/ ${tickerOpcao}`, JSON.stringify(auditInfo));
+          // LOG AUDITORIA MATEMÁTICA
+          SysLogger.log(this._serviceName, "INFO", `Cálculo BS p/ ${optTicker}`, JSON.stringify({
+            spot: S, strike: K, dtm: T_dias, iv_calc: (iv * 100).toFixed(2) + "%", price_teo: resBS.price.toFixed(2), delta: resBS.delta.toFixed(4)
+          }));
         }
 
-        const dadosFinais = {
-          ...resBS,
-          ID_Trade_Unico: idTrade,
-          Ativo: tickerOpcao,
-          ID_Estrutura: detail.ID_Estrutura,
-          Timestamp_Atualizacao: timestampAtual,
-          moneyness: resBS.moneyness_val,
-          moneyness_code: resBS.moneyness_code
-        };
+        if (resBS) {
+          const rowNum = idToRowMap[idTrade];
+          let linhaFinal = rowNum ? abaCalc.getRange(rowNum, 1, 1, abaCalc.getLastColumn()).getValues()[0] : new Array(abaCalc.getLastColumn()).fill("");
 
-        const headersD = abaCalc.getRange(1, 1, 1, abaCalc.getLastColumn()).getValues()[0];
-        const rowData = headersD.map(h => {
-          const k = String(h).trim();
-          return dadosFinais[k] !== undefined ? dadosFinais[k] : "";
-        });
+          // MAPEAMENTO ABSOLUTO PARA O DICIONÁRIO (ZERO HOLES)
+          const dadosMapeados = {
+            ID_TRADE: idTrade,
+            OPTION_TICKER: optTicker,
+            ID_STRATEGY: String(linha[colI.ID_STRATEGY] || "").trim(),
+            UPDATED_AT: timestampAtual,
+            DELTA: resBS.delta,
+            GAMMA: resBS.gamma,
+            VEGA: resBS.vega,
+            THETA: resBS.theta,
+            RHO: resBS.rho,
+            POE: resBS.poe,
+            PRICE: resBS.price,
+            IV_CALC: resBS.volatility,
+            MONEYNESS: resBS.moneyness_code,
+            MONEYNESS_RATIO: resBS.moneyness_val,
+            SPOT: Number(asset.SPOT),
+            STRIKE: Number(detail.STRIKE)
+          };
 
-        const rowNum = idToRowMap[idTrade];
-        if (rowNum) {
-          abaCalc.getRange(rowNum, 1, 1, rowData.length).setValues([rowData]);
-        } else {
-          abaCalc.appendRow(rowData);
-          idToRowMap[idTrade] = abaCalc.getLastRow();
+          // INJEÇÃO DA LINHA
+          for (const label in colC) {
+            const idx = colC[label];
+            if (dadosMapeados[label] !== undefined) {
+              linhaFinal[idx] = dadosMapeados[label];
+            }
+          }
+
+          if (rowNum) {
+            abaCalc.getRange(rowNum, 1, 1, linhaFinal.length).setValues([linhaFinal]);
+          } else {
+            abaCalc.appendRow(linhaFinal);
+            idToRowMap[idTrade] = abaCalc.getLastRow();
+          }
+          stats.gravados++;
         }
       }
 
-      const duracao = ((Date.now() - inicio) / 1000).toFixed(1);
-      SysLogger.log(this._serviceName, "FINISH", `>>> PROCESSAMENTO FINALIZADO <<<`, JSON.stringify({
-        tempo: duracao + "s",
-        ativos_analisados: stats.total,
-        calculos_novos: stats.calculos,
-        uso_cache: stats.cache,
-        erros_insumo: stats.erros
+      const duracaoFinal = ((Date.now() - inicio) / 1000).toFixed(1);
+      SysLogger.log(this._serviceName, "FINISH", `>>> CÁLCULO NATIVO CONCLUÍDO <<<`, JSON.stringify({
+        duracao: duracaoFinal + "s",
+        total_lido: stats.lidos,
+        gravados: stats.gravados,
+        pulados_status: stats.skip_status,
+        erros_insumo: stats.erros,
+        diagnostico: statusEncontrados
       }));
       SysLogger.flush();
 
@@ -199,35 +218,34 @@ const GreeksCalculator = {
     }
   },
 
-  _getMap(aba, pk) {
+  _getColMap(aba) {
     if (!aba) return {};
-    const data = aba.getDataRange().getValues();
-    const headers = data[0];
-    const pkIdx = headers.indexOf(pk);
+    const headers = aba.getRange(1, 1, 1, aba.getLastColumn()).getValues()[0];
     const map = {};
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i], obj = {};
-      headers.forEach((h, idx) => obj[h] = row[idx]);
-      if (row[pkIdx]) map[String(row[pkIdx]).trim()] = obj;
-    }
+    headers.forEach((h, i) => { if(h) map[String(h).trim()] = i; });
     return map;
   },
 
-  _getRowMap(aba, pk) {
-    const map = {};
-    if (!aba || aba.getLastRow() < 2) return map;
+  _getDynamicMap(aba, pkLabel) {
+    if (!aba) return {};
     const data = aba.getDataRange().getValues();
-    const pkIdx = data[0].indexOf(pk);
+    const headers = data[0];
+    const pkIdx = headers.indexOf(pkLabel);
+    if (pkIdx === -1) return {};
+    const map = {};
     for (let i = 1; i < data.length; i++) {
-      if (data[i][pkIdx]) map[String(data[i][pkIdx]).trim()] = i + 1;
+      const obj = {};
+      headers.forEach((h, idx) => obj[h] = data[i][idx]);
+      if (data[i][pkIdx]) map[String(data[i][pkIdx]).trim()] = obj;
     }
     return map;
   }
 };
 
 // ============================================================================
-// PONTO DE ENTRADA (Orquestrador / Menu)
+// PONTO DE ENTRADA (Trigger Dinâmico / Menu)
 // ============================================================================
+
 
 /** Função para o Orquestrador rodar o cálculo nativo */
 function calcularGregasNativo() { 
