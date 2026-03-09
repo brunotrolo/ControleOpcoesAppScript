@@ -1,55 +1,44 @@
-/*
+/**
  * ═══════════════════════════════════════════════════════════════
- * CÓDIGO.GS - ORQUESTRADOR PRINCIPAL
+ * CÓDIGO.GS - PONTO DE ENTRADA E MENU PRINCIPAL
  * ═══════════════════════════════════════════════════════════════
- * 
- * ARQUIVO PRINCIPAL - Este deve ser o primeiro arquivo do projeto!
- * 
  * RESPONSABILIDADES:
- * - Criar menu (onOpen) - EXECUTADO AUTOMATICAMENTE PELO GOOGLE SHEETS
- * 
- * VERSÃO: 1.0
- * DATA: 2025-11-13
- * 
+ * - Criar menu (onOpen) para interação do usuário com a interface (004).
+ * - Servir a aplicação Web (doGet / include).
+ * - Manter utilitários isolados de autorização.
  * ═══════════════════════════════════════════════════════════════
  */
-executarFluxoSequencial
 
 /**
- * Cria o menu "⚙️ Automação" quando a planilha é aberta
+ * Cria o menu "⚙️ Automação" quando a planilha é aberta.
+ * Conecta diretamente com as Pontes (Bridges) do arquivo 004_CoreServiceUI.
  */
 function onOpen(e) {
   try {
     const ui = SpreadsheetApp.getUi();
     ui.createMenu('⚙️ Automação')
-        .addItem('🧠 Atualizar Cockpit ', 'executarFluxoSequencial')
+        .addItem('🚀 Rodar Fluxo Mestre (Planilha)', 'executarFluxoSequencial')
         .addSeparator()
-        .addItem('📊 Atualizar Portfólio', 'AtualizarPortfolio_Menu')
-        .addItem('📈 Sincronizar Dados Ativos', 'SyncDadosAtivos_Menu')
-        .addItem('🕰️ Sincronizar Dados Ativos Históricos', 'sincronizarAtivosHistoricos')
-        .addItem('🔍 Sincronizar Dados Detalhes', 'SyncDadosDetalhes_Menu')        
+        .addItem('📥 1. Atualizar Necton (Portfólio)', 'AtualizarNecton_Menu')
+        .addItem('📈 2. Atualizar Dados Ativos (Ações)', 'AtualizarDadosAtivos_Menu')
+        .addItem('🕰️ 3. Atualizar Histórico (250d)', 'AtualizarHistorico_Menu')
+        .addItem('🔍 4. Atualizar Detalhes (Opções)', 'AtualizarDetalhes_Menu')
         .addSeparator()
-        .addItem('🧮 Calcular Gregas (API)', 'SyncGreeks_Menu')
-        .addItem('🔬 Calcular Gregas (Nativo)', 'CalcGreeks_Menu')
-        .addItem('🔮 Calcular Análise Preditiva', 'executarPipelinePreditivo')
-        .addSeparator()
-        .addItem('🔎 Seleção de Opções (DTE)', 'SelecaoOpcoes_Menu')
-        .addItem('🛡️ Gerar Short Strangles', "orq_GerarShortStrangles")
-        .addItem('🧭 Gerar Consultoria Portifólio', "executarRotinaDiaria")
-        .addItem('🔍 Gerar Scanner de Oportunidades', "orquestrarScannerComEmail")
-        .addItem('📉 Gerar Analise Tendência (250d)', 'TendenciaDadosAtivos_Menu')
+        .addItem('🧮 5a. Calcular Gregas (API OpLab)', 'AtualizarGregasAPI_Menu')
+        .addItem('🔬 5b. Calcular Gregas (Nativo BS)', 'CalcularGregasNativo_Menu')
         .addToUi();
   } catch (err) {
-    // Apenas registra no Logger interno se falhar ao criar o menu (comum em aberturas rápidas/mobile)
-    console.warn("Não foi possível carregar a UI do menu: " + err.message);
+    console.warn("[onOpen] Interface indisponível.");
   }
 }
 
+// ============================================================================
+// SERVIDOR WEB (HTML SERVICE)
+// ============================================================================
 
 /**
- * Homologação de Carregamento de Arquivos
+ * Ponto de entrada para o Web App (Dashboard HTML).
  */
-
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
       .evaluate()
@@ -58,7 +47,9 @@ function doGet() {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-// Esta função é vital para o sistema de slots e componentes
+/**
+ * Função vital para o sistema de slots e componentes HTML.
+ */
 function include(filename) {
   try {
     return HtmlService.createHtmlOutputFromFile(filename).getContent();
@@ -67,30 +58,37 @@ function include(filename) {
   }
 }
 
+// ============================================================================
+// UTILITÁRIOS E TESTES DE INTEGRIDADE
+// ============================================================================
 
+/**
+ * Força o Google a pedir permissão do Gmail na primeira execução do script.
+ */
+function FORCAR_AUTORIZACAO_GMAIL() {
+  GmailApp.sendEmail(Session.getEffectiveUser().getEmail(), "Autorização de Sistema", "Esta é uma mensagem de verificação do sistema Stock Options.");
+}
 
-
+/**
+ * Verifica se a fundação (000 a 005) está conectada e se comunicando.
+ */
 function testeFinalIntegridade() {
   console.log("--- INICIANDO TESTE FINAL DE ARQUITETURA ---");
   
   try {
-    // 1. Testa se o motor (Core) acha as configurações
-    console.log("🔍 Verificando Motor: " + CONFIG_ORQUESTRADOR.versao);
+    // 1. Testa Base de Configuração (001)
+    console.log(`🔍 Configuração (001): Aba Gatilho definida como '${SYS_CONFIG.SHEETS.TRIGGER}'`);
     
-    // 2. Testa se o motor acha o Logger
-    log("SISTEMA", "INFO", "Teste de integridade pós-fatiamento", "Sucesso");
-    console.log("✅ Logger operacional.");
+    // 2. Testa Logger (003)
+    SysLogger.log("SISTEMA", "INFO", "Teste de integridade do Menu", "Sucesso");
+    console.log("✅ Logger (003) operacional.");
 
-    // 3. Testa se o motor acha o Orquestrador
-    const info = obterInformacoesOrquestrador();
-    console.log("✅ Orquestrador operacional. Serviços mapeados: " + info.servicos_disponiveis.length);
+    // 3. Testa Orquestrador (005)
+    const servicos = Object.keys(CoreOrchestrator.REGISTRY);
+    console.log(`✅ Orquestrador (005) operacional. Serviços mapeados: ${servicos.length} (${servicos.join(", ")})`);
 
-    console.log("--- SISTEMA SAUDÁVEL E TOTALMENTE FATIADO ---");
+    console.log("--- SISTEMA SAUDÁVEL E TOTALMENTE CONECTADO ---");
   } catch (e) {
     console.error("❌ ERRO DE INTEGRIDADE: " + e.message);
   }
-}
-
-function FORCAR_AUTORIZACAO_GMAIL() {
-  GmailApp.sendEmail("teste@exemplo.com", "Teste", "Forçando janela");
 }

@@ -1,146 +1,180 @@
 /**
- * MÓDULO: OpLabClient - v1.4
- * OBJETIVO: Centralizar requisições para a API OpLab (Options e Stocks).
+ * @fileoverview API Client (Oplab & Brapi) - v3.0 (Turbo RAM Cache)
+ * Foco: Extrair dados brutos com latência reduzida e resiliência de cota.
  */
-function oplaBCall_(endpoint) {
-  const servico = "OpLabClient_v1.4";
-  
-  // 1. Recuperação segura de constantes globais/propriedades
-  let chaveToken = "OPLAB_ACCESS_TOKEN"; 
-  try { if (typeof OPLAB_TOKEN_NAME !== 'undefined') chaveToken = OPLAB_TOKEN_NAME; } catch(e){}
-  
-  const propToken = PropertiesService.getScriptProperties().getProperty(chaveToken);
-  
-  if (!propToken) {
-    console.error("❌ OpLabClient: Token não encontrado na chave: " + chaveToken);
-    return null;
-  }
 
-  let urlBase = "https://api.oplab.com.br/v3";
-  try { if (typeof OPLAB_API_URL !== 'undefined') urlBase = OPLAB_API_URL; } catch(e){}
-  
-  const urlFinal = urlBase + endpoint;
+const ApiClient = {
 
-  // 2. Configuração da requisição
-  const options = {
-    "method": "get",
-    "headers": { "Access-Token": String(propToken).trim() },
-    "muteHttpExceptions": true
-  };
+  /**
+   * Faz o fetch HTTP com Retry Automático e Exponential Backoff.
+   * @private
+   */
+  _fetchData(url, options = {}, retries = 3) {
+    const fetchOptions = {
+      method: "get",
+      muteHttpExceptions: true,
+      ...options
+    };
 
-  try {
-    const response = UrlFetchApp.fetch(urlFinal, options);
-    const code = response.getResponseCode();
-    
-    if (code !== 200) {
-      // 204 é comum para ativos vencidos ou sem dados no momento
-      console.warn(`⚠️ OpLab API [${code}] em: ${endpoint}`);
-      return null;
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = UrlFetchApp.fetch(url, fetchOptions);
+        const code = response.getResponseCode();
+        const content = response.getContentText();
+        
+        if (code === 200) return JSON.parse(content);
+        if (code === 204) return null; 
+        
+        if (code === 429 || content.includes("quota exceeded")) {
+           throw new Error("QUOTA_LIMIT");
+        }
+
+        console.warn(`[ApiClient] API HTTP ${code} na URL: ${url}`);
+        return null;
+
+      } catch (e) {
+        if (i === retries - 1) {
+          console.error(`[ApiClient] Falha final após ${retries} tentativas: ${e.message}`);
+          return null;
+        }
+        const waitTime = Math.pow(2, i + 1) * 1000;
+        console.warn(`[ApiClient] Erro de rede/cota. Tentativa ${i + 1}/${retries}. Aguardando ${waitTime}ms...`);
+        Utilities.sleep(waitTime);
+      }
     }
-    
-    return JSON.parse(response.getContentText());
-
-  } catch (e) {
-    console.error("FALHA CRÍTICA NO FETCH: " + e.toString());
-    return null;
   }
-}
+};
 
-/**
- * Interface para Detalhes de OPÇÕES
- */
-function getOpLabOptionDetails(ticker) {
-  if (!ticker) return null;
-  return oplaBCall_("/market/options/details/" + ticker);
-}
+// ============================================================================
+// SERVIÇO: OPLAB API (Com RAM Cache)
+// ============================================================================
 
-/**
- * Interface para Dados de ATIVOS (Stocks)
- */
-function getOpLabStockData(ticker) {
-  if (!ticker) return null;
-  return oplaBCall_("/market/stocks/" + ticker);
-}
-
-/**
- * Interface para CALCULAR GREGAS (Black-Scholes)
- * Fiel ao Swagger OpLab v3
- */
-function calculateOpLabBS(params) {
-  // Ajustando para os nomes EXATOS do Swagger
-  const queryParams = {
-    "symbol": params.symbol,
-    "irate": params.irate,     // Ex: 10.75 (em %)
-    "type": params.type,       // "CALL" ou "PUT"
-    "spotprice": params.spotprice,
-    "strike": params.strike,
-    "premium": params.premium || 0,
-    "dtm": params.dtm,
-    "vol": params.vol,         // Ex: 44.27 (em %)
-    "amount": params.amount || 0
-  };
-
-  const queryString = Object.keys(queryParams)
-    .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(queryParams[k]))
-    .join('&');
-
-  return oplaBCall_("/market/options/bs?" + queryString);
-}
-
-function testarTokenOpLab() {
-  const token = PropertiesService.getDocumentProperties().getProperty("OPLAB_ACCESS_TOKEN");
-  Logger.log("TOKEN LIDO: " + token);
-}
-
-
-/**
- * Interface para Dados FUNDAMENTALISTAS via BRAPI (Oficial e sem bloqueios)
- * Retorna JSON puro da B3. Utiliza módulos avançados para VPA e ROE.
- */
-function getBrapiStockData(ticker) {
-  if (!ticker) return null;
-
-  // Dica de segurança: Lembre-se de rotacionar ou ocultar este token no futuro!
-  const BRAPI_TOKEN = "49jViAQnD5LmPuZmdCZgM8"; 
+const OplabService = {
+  _baseUrl: "https://api.oplab.com.br/v3",
+  _tokenCache: null, // <--- CACHE EM RAM
   
-  try {
-    // 🌟 NOVO: Adicionamos os módulos avançados que trazem o VPA e o ROE
-    const url = `https://brapi.dev/api/quote/${ticker}?modules=defaultKeyStatistics,financialData,summaryDetail&token=${BRAPI_TOKEN}`;
-    
-    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    
-    if (response.getResponseCode() !== 200) {
-      console.warn(`BRAPI falhou para ${ticker}. HTTP: ${response.getResponseCode()}`);
-      return null;
-    }
+  _getHeaders() {
+    // Se o token já foi lido nesta execução, não chama o PropertiesService
+    if (this._tokenCache) return { "Access-Token": this._tokenCache };
 
-    const json = JSON.parse(response.getContentText());
-    if (!json.results || json.results.length === 0) return null;
+    const token = PropertiesService.getScriptProperties().getProperty("OPLAB_ACCESS_TOKEN");
+    if (!token) throw new Error("Token OPLAB_ACCESS_TOKEN ausente.");
     
-    const data = json.results[0];
+    this._tokenCache = token.trim();
+    return { "Access-Token": this._tokenCache };
+  },
+
+  getOptionDetails(ticker) {
+    if (!ticker) return null;
+    const url = `${this._baseUrl}/market/options/details/${ticker.toUpperCase()}`;
+    return ApiClient._fetchData(url, { headers: this._getHeaders() });
+  },
+
+  getStockData(ticker) {
+    if (!ticker) return null;
+    const url = `${this._baseUrl}/market/stocks/${ticker.toUpperCase()}`;
+    return ApiClient._fetchData(url, { headers: this._getHeaders() });
+  },
+
+  getHistoricalData(ticker, amount = 250) {
+    if (!ticker) return null;
+    const url = `${this._baseUrl}/market/historical/${ticker.toUpperCase()}/1d?amount=${amount}&smooth=true&df=iso`;
+    return ApiClient._fetchData(url, { headers: this._getHeaders() });
+  },
+
+  calculateBS(params) {
+    if (!params || !params.symbol) return null;
+    const query = Object.keys(params)
+      .map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`)
+      .join('&');
+    const url = `${this._baseUrl}/market/options/bs?${query}`;
+    return ApiClient._fetchData(url, { headers: this._getHeaders() });
+  }
+};
+
+// ============================================================================
+// SERVIÇO: BRAPI API (Com RAM Cache)
+// ============================================================================
+
+const BrapiService = {
+  _baseUrl: "https://brapi.dev/api/quote",
+  _tokenCache: null, // <--- CACHE EM RAM
+  
+  _getToken() {
+    if (this._tokenCache) return this._tokenCache;
+
+    const token = PropertiesService.getScriptProperties().getProperty("BRAPI_ACCESS_TOKEN");
+    if (!token) throw new Error("Token BRAPI_ACCESS_TOKEN ausente.");
+    
+    this._tokenCache = token.trim();
+    return this._tokenCache;
+  },
+
+  getFundamentalData(ticker) {
+    if (!ticker) return null;
+    const url = `${this._baseUrl}/${ticker.toUpperCase()}?modules=defaultKeyStatistics,financialData`;
+    const res = ApiClient._fetchData(url, {
+      headers: { "Authorization": `Bearer ${this._getToken()}` }
+    });
+    
+    if (!res || !res.results || res.results.length === 0) return null;
+    
+    const data = res.results[0];
     const stats = data.defaultKeyStatistics || {};
     const finData = data.financialData || {};
-    const summary = data.summaryDetail || {};
 
-    // Helper: A API entrega os dados soltos ou dentro de objetos { raw: 123 }
-    const getVal = (obj, key) => {
+    const extractRaw = (obj, key) => {
       if (!obj || obj[key] === undefined) return 0;
-      if (typeof obj[key] === 'object' && obj[key] !== null) return parseFloat(obj[key].raw) || 0;
-      return parseFloat(obj[key]) || 0;
+      return (typeof obj[key] === 'object' && obj[key] !== null) ? Number(obj[key].raw) : Number(obj[key]);
     };
 
     return {
-      lpa: getVal(stats, 'trailingEps') || parseFloat(data.earningsPerShare) || 0,
-      vpa: getVal(stats, 'bookValue'),
-      pl: getVal(summary, 'trailingPE') || parseFloat(data.priceEarnings) || 0,
-      pvp: getVal(stats, 'priceToBook'),
-      dy: getVal(summary, 'dividendYield') || (parseFloat(data.dividendsYield) || 0) / 100, 
-      roe: getVal(finData, 'returnOnEquity'), 
+      lpa: extractRaw(stats, 'trailingEps') || Number(data.earningsPerShare) || 0,
+      vpa: extractRaw(stats, 'bookValue'),
+      pl: Number(data.priceEarnings) || 0,
+      pvp: extractRaw(stats, 'priceToBook'),
+      dy: (Number(data.dividendsYield) || 0) / 100, 
+      roe: extractRaw(finData, 'returnOnEquity'), 
       divida: 0 
     };
-
-  } catch (e) {
-    console.error(`Erro na API BRAPI (${ticker}): ` + e.toString());
-    return null;
   }
+};
+
+// ============================================================================
+// SUÍTE DE TESTES E HOMOLOGAÇÃO
+// ============================================================================
+
+function testSuiteApiClient() {
+  console.log("=== INICIANDO HOMOLOGAÇÃO API CLIENT v3.0 ===");
+
+  // Teste 1: Performance do Cache de Token (OpLab)
+  const t0 = Date.now();
+  OplabService._getHeaders(); // 1ª leitura (I/O)
+  const t1 = Date.now();
+  OplabService._getHeaders(); // 2ª leitura (RAM)
+  const t2 = Date.now();
+  
+  console.log(`[PERF] 1ª Leitura Token (Properties): ${t1 - t0}ms`);
+  console.log(`[PERF] 2ª Leitura Token (RAM Cache): ${t2 - t1}ms`);
+  console.log(`[PERF] Ganho de Velocidade: ${((t1-t0) / (t2-t1 || 1)).toFixed(1)}x`);
+
+  // Teste 2: Conectividade Real OpLab (Ativo)
+  console.log("--- Testando Conectividade OpLab (PETR4) ---");
+  const stock = OplabService.getStockData("PETR4");
+  if (stock && stock.symbol) {
+    console.log(`✅ [OpLab] OK: Preço ${stock.symbol} = R$ ${stock.close}`);
+  } else {
+    console.error("❌ [OpLab] Falha na resposta.");
+  }
+
+  // Teste 3: Conectividade Real Brapi (Fundamentos)
+  console.log("--- Testando Conectividade Brapi (VALE3) ---");
+  const fundamental = BrapiService.getFundamentalData("VALE3");
+  if (fundamental && fundamental.lpa !== undefined) {
+    console.log(`✅ [Brapi] OK: LPA = ${fundamental.lpa}`);
+  } else {
+    console.error("❌ [Brapi] Falha na resposta.");
+  }
+
+  console.log("=== FIM DA HOMOLOGAÇÃO ===");
 }
